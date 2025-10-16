@@ -77,6 +77,10 @@ public class ClientGUI extends JFrame {
                 try {
                     String message;
                     while ((message = in.readLine()) != null) {
+
+                        // 🔹 DEBUG: log every received message
+                        System.out.println("Received raw message: " + message);
+
                         if (message.startsWith("USER_LIST:")) {
                             updateUserList(message.substring(10));
                         } else if (message.startsWith("IMAGE|")) {
@@ -91,6 +95,7 @@ public class ClientGUI extends JFrame {
                     appendToChat("❌ Disconnected from server\n", Color.RED);
                 }
             }).start();
+
 
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "Cannot connect to server!", "Error", JOptionPane.ERROR_MESSAGE);
@@ -150,17 +155,28 @@ public class ClientGUI extends JFrame {
     }
 
     private void handleImageMessage(String msg) {
-        String[] parts = msg.split("\\|", 3);
-        if (parts.length != 3) return;
-        String sender = parts[1];
-        String base64 = parts[2];
-
         try {
+            int first = msg.indexOf('|');
+            int second = msg.indexOf('|', first + 1);
+            int third = msg.indexOf('|', second + 1);
+            if (first == -1 || second == -1 || third == -1) {
+                System.out.println("Invalid IMAGE message format: " + msg);
+                return;
+            }
+
+            String sender = msg.substring(first + 1, second);
+            String filename = msg.substring(second + 1, third);
+            String base64 = msg.substring(third + 1);
+
+            // 🔹 Debug
+            System.out.println("Decoding IMAGE from " + sender + " filename=" + filename + " length=" + base64.length());
+
             byte[] bytes = Base64.getDecoder().decode(base64);
             ImageIcon icon = new ImageIcon(bytes);
             appendIcon(sender, icon);
         } catch (Exception e) {
-            appendToChat("⚠️ Failed to display image from " + sender + "\n", Color.RED);
+            e.printStackTrace();
+            appendToChat("⚠️ Failed to display image from " + msg + "\n", Color.RED);
         }
     }
 

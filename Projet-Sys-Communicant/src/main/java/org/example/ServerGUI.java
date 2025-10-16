@@ -1,5 +1,6 @@
 package org.example;
 
+
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
@@ -42,11 +43,9 @@ public class ServerGUI extends JFrame {
         }
     }
 
-    public synchronized void broadcast(String message, ClientHandler sender) {
+    public synchronized void broadcast(String message) {
         for (ClientHandler client : clientMap.values()) {
-            if (client != sender) {
-                client.sendMessage(message);
-            }
+            client.sendMessage(message); // send to everyone including sender
         }
     }
 
@@ -104,7 +103,7 @@ public class ServerGUI extends JFrame {
                 username = in.readLine();
                 server.appendLog("🟢 " + username + " joined.\n");
                 server.addClient(username, this);
-                server.broadcast(username + " joined the chat!", this);
+                server.broadcast(username + " joined the chat!");
 
                 String input;
                 while ((input = in.readLine()) != null) {
@@ -118,23 +117,33 @@ public class ServerGUI extends JFrame {
                     } else if (input.startsWith("BROADCAST|")) {
                         String msg = input.substring("BROADCAST|".length());
                         server.appendLog("📩 " + username + ": " + msg + "\n");
-                        server.broadcast(username + ": " + msg, this);
+                        server.broadcast(username + ": " + msg);
                     } else if (input.startsWith("IMAGE_PRIVATE|")) {
-                        String[] parts = input.split("\\|", 4);
-                        if (parts.length == 4) {
-                            String recipient = parts[1];
-                            String filename = parts[2];
-                            String base64 = parts[3];
+                        int first = input.indexOf('|');
+                        int second = input.indexOf('|', first + 1);
+                        int third = input.indexOf('|', second + 1);
+                        if (first != -1 && second != -1 && third != -1) {
+                            String recipient = input.substring(first + 1, second);
+                            String filename = input.substring(second + 1, third);
+                            String base64 = input.substring(third + 1);
                             server.sendToUser(recipient, "IMAGE_PRIVATE|" + username + "|" + filename + "|" + base64);
                         }
                     } else if (input.startsWith("IMAGE|")) {
-                        String[] parts = input.split("\\|", 3);
-                        if (parts.length == 3) {
-                            String filename = parts[1];
-                            String base64 = parts[2];
-                            server.broadcast("IMAGE|" + username + "|" + filename + "|" + base64, this);
+                        int first = input.indexOf('|');
+                        int second = input.indexOf('|', first + 1);
+                        if (first != -1 && second != -1) {
+                            String filename = input.substring(first + 1, second);
+                            String base64 = input.substring(second + 1);
+
+                            // 🔹 DEBUG: log what the server is broadcasting
+                            server.appendLog("Broadcasting IMAGE from " + username +
+                                    " filename=" + filename +
+                                    " base64 length=" + base64.length() + "\n");
+
+                            server.broadcast("IMAGE|" + username + "|" + filename + "|" + base64);
                         }
                     }
+
                 }
 
             } catch (IOException e) {
@@ -142,7 +151,7 @@ public class ServerGUI extends JFrame {
             } finally {
                 try { socket.close(); } catch (IOException ignored) {}
                 server.removeClient(username);
-                server.broadcast(username + " left the chat.", this);
+                server.broadcast(username + " left the chat.");
             }
         }
 
