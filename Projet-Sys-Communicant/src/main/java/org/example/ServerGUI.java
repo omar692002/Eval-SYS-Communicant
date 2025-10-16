@@ -1,4 +1,5 @@
-package org.example;// ServerGUI.java
+package org.example;
+
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
@@ -8,7 +9,8 @@ import java.util.*;
 public class ServerGUI extends JFrame {
     private JTextArea logArea;
     private static final int PORT = 1234;
-    private static Set<ClientHandler> clients = new HashSet<>();
+
+    private static Map<String, ClientHandler> clientMap = new HashMap<>();
 
     public ServerGUI() {
         setTitle("Server");
@@ -22,7 +24,7 @@ public class ServerGUI extends JFrame {
 
         setVisible(true);
 
-        new Thread(this::startServer).start(); // Start the server logic
+        new Thread(this::startServer).start();
     }
 
     private void startServer() {
@@ -31,10 +33,7 @@ public class ServerGUI extends JFrame {
 
             while (true) {
                 Socket socket = serverSocket.accept();
-                appendLog("👤 New client connected!\n");
-
                 ClientHandler clientHandler = new ClientHandler(socket, this);
-                clients.add(clientHandler);
                 new Thread(clientHandler).start();
             }
 
@@ -44,29 +43,35 @@ public class ServerGUI extends JFrame {
     }
 
     public synchronized void broadcast(String message, ClientHandler sender) {
-        for (ClientHandler client : clients) {
+        for (ClientHandler client : clientMap.values()) {
             if (client != sender) {
                 client.sendMessage(message);
             }
         }
     }
 
-    public synchronized void broadcastUserList() {
-        String userList = "USER_LIST:" + String.join(",", getUsernames());
-        for (ClientHandler client : clients) {
-            client.sendMessage(userList);
+    public synchronized void sendToUser(String recipient, String message) {
+        ClientHandler client = clientMap.get(recipient);
+        if (client != null) {
+            client.sendMessage(message);
         }
     }
 
-    public synchronized void removeClient(ClientHandler client) {
-        clients.remove(client);
+    public synchronized void addClient(String username, ClientHandler handler) {
+        clientMap.put(username, handler);
         broadcastUserList();
     }
 
-    private Set<String> getUsernames() {
-        Set<String> names = new HashSet<>();
-        for (ClientHandler c : clients) names.add(c.getUsername());
-        return names;
+    public synchronized void removeClient(String username) {
+        clientMap.remove(username);
+        broadcastUserList();
+    }
+
+    public synchronized void broadcastUserList() {
+        String users = String.join(",", clientMap.keySet());
+        for (ClientHandler client : clientMap.values()) {
+            client.sendMessage("USER_LIST:" + users);
+        }
     }
 
     public void appendLog(String msg) {
@@ -77,7 +82,7 @@ public class ServerGUI extends JFrame {
         SwingUtilities.invokeLater(ServerGUI::new);
     }
 
-    // Inner class to handle each client
+    // ------------------ ClientHandler -------------------
     static class ClientHandler implements Runnable {
         private Socket socket;
         private PrintWriter out;
@@ -90,33 +95,56 @@ public class ServerGUI extends JFrame {
             this.server = server;
         }
 
-        public String getUsername() {
-            return username;
-        }
-
         public void run() {
             try {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 out = new PrintWriter(socket.getOutputStream(), true);
 
-                // First message from client is their username
+                // First message = username
                 username = in.readLine();
                 server.appendLog("🟢 " + username + " joined.\n");
-
+                server.addClient(username, this);
                 server.broadcast(username + " joined the chat!", this);
-                server.broadcastUserList();
 
-                String message;
-                while ((message = in.readLine()) != null) {
-                    server.appendLog("📩 " + message + "\n");
-                    server.broadcast(message, this);
+                String input;
+                while ((input = in.readLine()) != null) {
+                    if (input.startsWith("PRIVATE|")) {
+                        // PRIVATE|recipient|message
+                        String[] parts = input.split("\\|", 3);
+                        if (parts.length == 3) {
+                            String targetUser = parts[1];
+                            String msg = parts[2];
+                            server.sendToUser(targetUser, "(Private) " + username + ": " + msg);
+                        }
+                    } else if (input.startsWith("BROADCAST|")) {
+                        String msg = input.substring("BROADCAST|".length());
+                        server.appendLog("📩 " + username + ": " + msg + "\n");
+                        server.broadcast(username + ": " + msg, this);
+                    } else if (input.startsWith("IMAGE_PRIVATE|")) {
+                        // IMAGE_PRIVATE|recipient|filename|base64
+                        String[] parts = input.split("\\|", 4);
+                        if (parts.length == 4) {
+                            String recipient = parts[1];
+                            String filename = parts[2];
+                            String base64 = parts[3];
+                            server.sendToUser(recipient, "IMAGE_PRIVATE|" + username + "|" + filename + "|" + base64);
+                        }
+                    } else if (input.startsWith("IMAGE|")) {
+                        // IMAGE|filename|base64
+                        String[] parts = input.split("\\|", 3);
+                        if (parts.length == 3) {
+                            String filename = parts[1];
+                            String base64 = parts[2];
+                            server.broadcast("IMAGE|" + username + "|" + filename + "|" + base64, this);
+                        }
+                    }
                 }
 
             } catch (IOException e) {
                 server.appendLog("🔴 " + username + " disconnected.\n");
             } finally {
                 try { socket.close(); } catch (IOException ignored) {}
-                server.removeClient(this);
+                server.removeClient(username);
                 server.broadcast(username + " left the chat.", this);
             }
         }
