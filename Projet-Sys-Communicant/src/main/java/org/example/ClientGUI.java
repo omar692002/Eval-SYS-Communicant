@@ -70,7 +70,6 @@ public class ClientGUI extends JFrame {
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            // Send username
             out.println(username);
             appendToChat("✅ Connected as " + username + "\n", Color.BLUE);
 
@@ -101,8 +100,11 @@ public class ClientGUI extends JFrame {
     private void updateUserList(String csvUsers) {
         SwingUtilities.invokeLater(() -> {
             userListModel.clear();
+            userListModel.addElement("All"); // Add "All" at the top
             if (!csvUsers.isBlank()) {
-                Arrays.stream(csvUsers.split(",")).forEach(userListModel::addElement);
+                Arrays.stream(csvUsers.split(","))
+                        .filter(u -> !u.equals(username)) // optional: hide yourself
+                        .forEach(userListModel::addElement);
             }
         });
     }
@@ -112,13 +114,12 @@ public class ClientGUI extends JFrame {
         if (message.isEmpty()) return;
 
         String selectedUser = userList.getSelectedValue();
-
-        if (selectedUser != null && !selectedUser.equals(username)) {
-            out.println("PRIVATE|" + selectedUser + "|" + message);
-            appendToChat("➡️ (to " + selectedUser + "): " + message + "\n", Color.MAGENTA);
-        } else {
+        if (selectedUser == null || selectedUser.equals("All")) {
             out.println("BROADCAST|" + message);
             appendToChat("(Me): " + message + "\n", Color.BLUE);
+        } else {
+            out.println("PRIVATE|" + selectedUser + "|" + message);
+            appendToChat("➡️ (to " + selectedUser + "): " + message + "\n", Color.MAGENTA);
         }
 
         inputField.setText("");
@@ -135,12 +136,12 @@ public class ClientGUI extends JFrame {
                 byte[] imageBytes = java.nio.file.Files.readAllBytes(file.toPath());
                 String base64Image = Base64.getEncoder().encodeToString(imageBytes);
 
-                if (selectedUser != null && !selectedUser.equals(username)) {
-                    out.println("IMAGE_PRIVATE|" + selectedUser + "|" + file.getName() + "|" + base64Image);
-                    appendToChat("➡️ (to " + selectedUser + ") sent image: " + file.getName() + "\n", Color.MAGENTA);
-                } else {
+                if (selectedUser == null || selectedUser.equals("All")) {
                     out.println("IMAGE|" + file.getName() + "|" + base64Image);
                     appendToChat("📤 Sent image: " + file.getName() + "\n", Color.BLUE);
+                } else {
+                    out.println("IMAGE_PRIVATE|" + selectedUser + "|" + file.getName() + "|" + base64Image);
+                    appendToChat("➡️ (to " + selectedUser + ") sent image: " + file.getName() + "\n", Color.MAGENTA);
                 }
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Failed to send image: " + ex.getMessage());
@@ -149,7 +150,6 @@ public class ClientGUI extends JFrame {
     }
 
     private void handleImageMessage(String msg) {
-        // IMAGE|sender|filename|base64
         String[] parts = msg.split("\\|", 3);
         if (parts.length != 3) return;
         String sender = parts[1];
@@ -165,7 +165,6 @@ public class ClientGUI extends JFrame {
     }
 
     private void handlePrivateImage(String msg) {
-        // IMAGE_PRIVATE|sender|filename|base64
         String[] parts = msg.split("\\|", 4);
         if (parts.length != 4) return;
         String sender = parts[1];

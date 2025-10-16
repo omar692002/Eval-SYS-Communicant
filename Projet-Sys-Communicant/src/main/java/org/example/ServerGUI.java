@@ -109,7 +109,6 @@ public class ServerGUI extends JFrame {
                 String input;
                 while ((input = in.readLine()) != null) {
                     if (input.startsWith("PRIVATE|")) {
-                        // PRIVATE|recipient|message
                         String[] parts = input.split("\\|", 3);
                         if (parts.length == 3) {
                             String targetUser = parts[1];
@@ -121,7 +120,6 @@ public class ServerGUI extends JFrame {
                         server.appendLog("📩 " + username + ": " + msg + "\n");
                         server.broadcast(username + ": " + msg, this);
                     } else if (input.startsWith("IMAGE_PRIVATE|")) {
-                        // IMAGE_PRIVATE|recipient|filename|base64
                         String[] parts = input.split("\\|", 4);
                         if (parts.length == 4) {
                             String recipient = parts[1];
@@ -130,7 +128,6 @@ public class ServerGUI extends JFrame {
                             server.sendToUser(recipient, "IMAGE_PRIVATE|" + username + "|" + filename + "|" + base64);
                         }
                     } else if (input.startsWith("IMAGE|")) {
-                        // IMAGE|filename|base64
                         String[] parts = input.split("\\|", 3);
                         if (parts.length == 3) {
                             String filename = parts[1];
