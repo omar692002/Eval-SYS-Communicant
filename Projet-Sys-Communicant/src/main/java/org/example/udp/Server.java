@@ -12,60 +12,23 @@ public class Server {
     public static void main(String[] args) {
         try (DatagramSocket socket = new DatagramSocket(PORT)) {
             System.out.println("🟢 UDP Server running on port " + PORT);
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[65535];
 
             while (true) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
-                String message = new String(packet.getData(), 0, packet.getLength()).trim();
+
+                byte[] data = Arrays.copyOf(packet.getData(), packet.getLength());
+                String message = new String(data, 0, Math.min(10, data.length));
 
                 InetAddress address = packet.getAddress();
                 int port = packet.getPort();
 
-                if (message.startsWith("JOIN:")) {
-                    String pseudo = message.substring(5);
-                    ClientInfo newClient = new ClientInfo(address, port, pseudo);
-                    clients.add(newClient);
-                    System.out.println("👤 " + pseudo + " joined (" + address + ":" + port + ")");
-
-                    // Notifier tout le monde avec la liste mise à jour
-                    String userList = String.join(",", clients.stream().map(ClientInfo::pseudo).toList());
-                    for (ClientInfo c : clients) {
-                        sendToOne(socket, "USERLIST:" + userList, c);
-                    }
-
-                    broadcast(socket, pseudo + " joined the chat 🟢", newClient);
-
-                } else if (message.startsWith("LEAVE:")) {
-                    String pseudo = message.substring(6);
-                    clients.removeIf(c -> c.address.equals(address) && c.port == port);
-                    System.out.println("❌ " + pseudo + " left the chat");
-                    broadcast(socket, pseudo + " left the chat 🔴", null);
-
-                } else if (message.startsWith("TO:")) {
-                    // Format: TO:<targetPseudo>:<senderPseudo>:<message>
-                    String[] parts = message.split(":", 4);
-                    if (parts.length < 4) continue;
-                    String targetPseudo = parts[1];
-                    String senderPseudo = parts[2];
-                    String msgText = parts[3];
-
-                    Optional<ClientInfo> target = clients.stream()
-                            .filter(c -> c.pseudo.equals(targetPseudo))
-                            .findFirst();
-
-                    if (target.isPresent()) {
-                        sendToOne(socket, senderPseudo + " -> You: " + msgText, target.get());
-                    }
-
-                } else if (message.startsWith("ALL:")) {
-                    // Format: ALL:<senderPseudo>:<message>
-                    String[] parts = message.split(":", 3);
-                    if (parts.length < 3) continue;
-                    String senderPseudo = parts[1];
-                    String msgText = parts[2];
-                    broadcast(socket, senderPseudo + " -> ALL: " + msgText, null);
-                }
+                if (message.startsWith("JOIN:")) handleJoin(socket, new String(data), address, port);
+                else if (message.startsWith("LEAVE:")) handleLeave(socket, new String(data), address, port);
+                else if (message.startsWith("TO:")) handlePrivate(socket, new String(data));
+                else if (message.startsWith("ALL:")) handleBroadcast(socket, new String(data));
+                else if (message.startsWith("IMG:")) handleImage(socket, data);
             }
 
         } catch (Exception e) {
@@ -73,18 +36,75 @@ public class Server {
         }
     }
 
-    private static void broadcast(DatagramSocket socket, String message, ClientInfo exclude) throws Exception {
-        byte[] data = message.getBytes();
+    private static void handleJoin(DatagramSocket socket, String msg, InetAddress address, int port) throws Exception {
+        String pseudo = msg.substring(5);
+        ClientInfo newClient = new ClientInfo(address, port, pseudo);
+        clients.add(newClient);
+        System.out.println("👤 " + pseudo + " joined (" + address + ":" + port + ")");
+        broadcastUserList(socket);
+        broadcast(socket, pseudo + " joined the chat 🟢", null);
+    }
+
+    private static void handleLeave(DatagramSocket socket, String msg, InetAddress address, int port) throws Exception {
+        String pseudo = msg.substring(6);
+        clients.removeIf(c -> c.address.equals(address) && c.port == port);
+        broadcast(socket, pseudo + " left the chat 🔴", null);
+        broadcastUserList(socket);
+    }
+
+    private static void handlePrivate(DatagramSocket socket, String msg) throws Exception {
+        String[] parts = msg.split(":", 4);
+        if (parts.length < 4) return;
+
+        String target = parts[1];
+        String sender = parts[2];
+        String content = parts[3];
+
+        clients.stream()
+                .filter(c -> c.pseudo.equals(target))
+                .findFirst()
+                .ifPresent(c -> sendTo(socket, sender + " -> You: " + content, c));
+    }
+
+    private static void handleBroadcast(DatagramSocket socket, String msg) throws Exception {
+        String[] parts = msg.split(":", 3);
+        if (parts.length < 3) return;
+
+        String sender = parts[1];
+        String text = parts[2];
+        ClientInfo senderClient = clients.stream().filter(c -> c.pseudo.equals(sender)).findFirst().orElse(null);
+
+        broadcast(socket, sender + " -> ALL: " + text, senderClient);
+    }
+
+    private static void handleImage(DatagramSocket socket, byte[] data) throws Exception {
         for (ClientInfo c : clients) {
-            if (exclude != null && c.equals(exclude)) continue;
-            DatagramPacket sendPacket = new DatagramPacket(data, data.length, c.address, c.port);
-            socket.send(sendPacket);
+            DatagramPacket p = new DatagramPacket(data, data.length, c.address, c.port);
+            socket.send(p);
         }
     }
 
-    private static void sendToOne(DatagramSocket socket, String message, ClientInfo client) throws Exception {
-        byte[] data = message.getBytes();
-        DatagramPacket sendPacket = new DatagramPacket(data, data.length, client.address, client.port);
-        socket.send(sendPacket);
+    private static void broadcastUserList(DatagramSocket socket) throws Exception {
+        String userList = String.join(",", clients.stream().map(ClientInfo::pseudo).toList());
+        for (ClientInfo c : clients) sendTo(socket, "USERLIST:" + userList, c);
+    }
+
+    private static void broadcast(DatagramSocket socket, String msg, ClientInfo exclude) throws Exception {
+        byte[] data = msg.getBytes();
+        for (ClientInfo c : clients) {
+            if (exclude != null && c.equals(exclude)) continue;
+            DatagramPacket p = new DatagramPacket(data, data.length, c.address, c.port);
+            socket.send(p);
+        }
+    }
+
+    private static void sendTo(DatagramSocket socket, String msg, ClientInfo client) {
+        try {
+            byte[] data = msg.getBytes();
+            DatagramPacket p = new DatagramPacket(data, data.length, client.address, client.port);
+            socket.send(p);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
