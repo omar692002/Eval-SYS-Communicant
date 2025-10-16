@@ -3,15 +3,16 @@ package org.example.udp;
 import javax.swing.*;
 import java.awt.*;
 import java.net.*;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.Arrays;
+import java.util.List;
 
 public class ChatClientUI extends JFrame {
     private JTextArea chatArea = new JTextArea();
     private JTextField inputField = new JTextField();
     private JButton sendButton = new JButton("Send");
     private DefaultListModel<String> connectedModel = new DefaultListModel<>();
+    private JList<String> connectedList;
     private DatagramSocket socket;
     private InetAddress serverAddress;
     private int serverPort = 9876;
@@ -28,40 +29,29 @@ public class ChatClientUI extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        // Chat area
         chatArea.setEditable(false);
         JScrollPane chatScroll = new JScrollPane(chatArea);
 
-        // Connected users list
-        JList<String> connectedList = new JList<>(connectedModel);
+        connectedList = new JList<>(connectedModel);
         connectedList.setBorder(BorderFactory.createTitledBorder("🟢 Connected Users"));
-
+        connectedList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         JScrollPane userScroll = new JScrollPane(connectedList);
-        userScroll.setPreferredSize(new Dimension(200, 0)); // width=200px
+        userScroll.setPreferredSize(new Dimension(200, 0));
 
-        JPanel userPanel = new JPanel(new BorderLayout());
-        userPanel.add(userScroll, BorderLayout.CENTER);
-
-        // Bottom panel with input and send button
         JPanel inputPanel = new JPanel(new BorderLayout());
         inputPanel.add(inputField, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
 
         add(chatScroll, BorderLayout.CENTER);
-        add(userPanel, BorderLayout.EAST);
+        add(userScroll, BorderLayout.EAST);
         add(inputPanel, BorderLayout.SOUTH);
 
-        // Action listeners
         inputField.addActionListener(e -> sendMessage());
         sendButton.addActionListener(e -> sendMessage());
 
-        // Notify server you joined
         sendSystemMessage("JOIN:" + pseudo);
-
-        // Start listening thread
         new Thread(this::receiveMessages).start();
 
-        // Handle closing
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
@@ -87,13 +77,22 @@ public class ChatClientUI extends JFrame {
             String msgText = inputField.getText().trim();
             if (msgText.isEmpty()) return;
 
-            String msg = pseudo + ": " + msgText;
-            byte[] data = msg.getBytes();
-            DatagramPacket packet = new DatagramPacket(data, data.length, serverAddress, serverPort);
-            socket.send(packet);
+            List<String> targets = connectedList.getSelectedValuesList();
+            if (targets.isEmpty()) return;
 
-            // Show only your version locally
-            chatArea.append("You: " + msgText + "\n");
+            for (String target : targets) {
+                String msg;
+                if (target.equals("ALL")) {
+                    msg = "ALL:" + pseudo + ":" + msgText;
+                    chatArea.append("You -> ALL: " + msgText + "\n");
+                } else {
+                    msg = "TO:" + target + ":" + pseudo + ":" + msgText;
+                    chatArea.append("You -> " + target + ": " + msgText + "\n");
+                }
+                byte[] data = msg.getBytes();
+                DatagramPacket packet = new DatagramPacket(data, data.length, serverAddress, serverPort);
+                socket.send(packet);
+            }
             inputField.setText("");
         } catch (Exception e) {
             e.printStackTrace();
@@ -107,7 +106,6 @@ public class ChatClientUI extends JFrame {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength()).trim();
-
                 SwingUtilities.invokeLater(() -> processIncomingMessage(message));
             }
         } catch (Exception e) {
@@ -120,17 +118,13 @@ public class ChatClientUI extends JFrame {
             String list = message.substring(9);
             connectedModel.clear();
             connectedUsers.clear();
+            connectedModel.addElement("ALL"); // Ajouter automatiquement ALL
             Arrays.stream(list.split(","))
-                    .filter(u -> !u.isBlank())
+                    .filter(u -> !u.isBlank() && !u.equals(pseudo))
                     .forEach(u -> {
                         connectedUsers.add(u);
                         connectedModel.addElement(u);
                     });
-        } else if (message.endsWith("🟢")) {
-            String user = message.split(" ")[0];
-            connectedUsers.add(user);
-            if (!connectedModel.contains(user)) connectedModel.addElement(user);
-            chatArea.append(message + "\n");
         } else {
             chatArea.append(message + "\n");
         }

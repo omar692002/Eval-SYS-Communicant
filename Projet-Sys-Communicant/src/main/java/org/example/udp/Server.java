@@ -28,38 +28,55 @@ public class Server {
                     clients.add(newClient);
                     System.out.println("👤 " + pseudo + " joined (" + address + ":" + port + ")");
 
-                    // Send the current user list to the newly joined client
-                    String userList = String.join(",",
-                            clients.stream().map(ClientInfo::pseudo).toList());
-                    sendToOne(socket, "USERLIST:" + userList, newClient);
+                    // Notifier tout le monde avec la liste mise à jour
+                    String userList = String.join(",", clients.stream().map(ClientInfo::pseudo).toList());
+                    for (ClientInfo c : clients) {
+                        sendToOne(socket, "USERLIST:" + userList, c);
+                    }
 
-                    // Notify everyone else
-                    broadcast(socket, pseudo + " joined the chat 🟢", address, port);
-                }
+                    broadcast(socket, pseudo + " joined the chat 🟢", newClient);
 
-                else if (message.startsWith("LEAVE:")) {
+                } else if (message.startsWith("LEAVE:")) {
                     String pseudo = message.substring(6);
                     clients.removeIf(c -> c.address.equals(address) && c.port == port);
                     System.out.println("❌ " + pseudo + " left the chat");
-                    broadcast(socket, pseudo + " left the chat 🔴", address, port);
-                }
+                    broadcast(socket, pseudo + " left the chat 🔴", null);
 
-                else {
-                    // Normal chat message — broadcast to others only
-                    broadcast(socket, message, address, port);
+                } else if (message.startsWith("TO:")) {
+                    // Format: TO:<targetPseudo>:<senderPseudo>:<message>
+                    String[] parts = message.split(":", 4);
+                    if (parts.length < 4) continue;
+                    String targetPseudo = parts[1];
+                    String senderPseudo = parts[2];
+                    String msgText = parts[3];
+
+                    Optional<ClientInfo> target = clients.stream()
+                            .filter(c -> c.pseudo.equals(targetPseudo))
+                            .findFirst();
+
+                    if (target.isPresent()) {
+                        sendToOne(socket, senderPseudo + " -> You: " + msgText, target.get());
+                    }
+
+                } else if (message.startsWith("ALL:")) {
+                    // Format: ALL:<senderPseudo>:<message>
+                    String[] parts = message.split(":", 3);
+                    if (parts.length < 3) continue;
+                    String senderPseudo = parts[1];
+                    String msgText = parts[2];
+                    broadcast(socket, senderPseudo + " -> ALL: " + msgText, null);
                 }
             }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static void broadcast(DatagramSocket socket, String message,
-                                  InetAddress senderAddr, int senderPort) throws Exception {
+    private static void broadcast(DatagramSocket socket, String message, ClientInfo exclude) throws Exception {
         byte[] data = message.getBytes();
         for (ClientInfo c : clients) {
-            if (c.address.equals(senderAddr) && c.port == senderPort)
-                continue; // Skip sender
+            if (exclude != null && c.equals(exclude)) continue;
             DatagramPacket sendPacket = new DatagramPacket(data, data.length, c.address, c.port);
             socket.send(sendPacket);
         }
