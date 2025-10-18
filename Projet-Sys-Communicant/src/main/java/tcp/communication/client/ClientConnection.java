@@ -32,8 +32,19 @@ public class ClientConnection {
         }
     }
 
-    public void send(String message) {
+    public void sendToServer(String message) {
         outToServer.println(message);
     }
+
+    public void close() {
+        try {
+            if (socket != null && !socket.isClosed()) socket.close();
+            if (outToServer != null) outToServer.close();
+            if (inFromServer != null) inFromServer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 
 }

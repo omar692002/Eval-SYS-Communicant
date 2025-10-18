@@ -12,7 +12,7 @@ public class ClientGUI extends JFrame {
     private JButton sendButton, sendImageButton;
     private JList<String> userList;
     private DefaultListModel<String> userListModel;
-
+    private JButton disconnectButton;
     private ClientConnection connection;
     private MessageHandler handler;
     private final String username;
@@ -31,6 +31,13 @@ public class ClientGUI extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
+        // ===== TOP PANEL =====
+        var topPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        disconnectButton = new JButton("Disconnect");
+        topPanel.add(disconnectButton);
+        add(topPanel, BorderLayout.NORTH);
+
+        // ===== CHAT AREA =====
         chatPane = new JTextPane();
         chatPane.setEditable(false);
         JScrollPane chatScroll = new JScrollPane(chatPane);
@@ -44,6 +51,7 @@ public class ClientGUI extends JFrame {
         splitPane.setDividerLocation(500);
         add(splitPane, BorderLayout.CENTER);
 
+        // ===== INPUT PANEL =====
         inputField = new JTextField();
         sendButton = new JButton("Send");
         sendImageButton = new JButton("Send Image");
@@ -63,6 +71,7 @@ public class ClientGUI extends JFrame {
         sendButton.addActionListener(e -> sendMessage());
         inputField.addActionListener(e -> sendMessage());
         sendImageButton.addActionListener(e -> sendImage());
+        disconnectButton.addActionListener(e -> disconnect());
     }
 
     private void connect() {
@@ -83,14 +92,38 @@ public class ClientGUI extends JFrame {
         boolean broadcast = (target == null || target.equals("All"));
 
         if (broadcast) {
-            connection.send("BROADCAST|" + message);
+            connection.sendToServer("BROADCAST|" + message);
             handler.appendToChat("(Me): " + message + "\n", Color.BLUE);
         } else {
-            connection.send("PRIVATE|" + target + "|" + message);
+            connection.sendToServer("PRIVATE|" + target + "|" + message);
             handler.appendToChat("➡️ (to " + target + "): " + message + "\n", Color.MAGENTA);
         }
         inputField.setText("");
     }
+
+    private void disconnect() {
+        var confirm = JOptionPane.showConfirmDialog(
+                this,
+                "Are you sure you want to disconnect?",
+                "Confirm Disconnect",
+                JOptionPane.YES_NO_OPTION
+        );
+
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        try {
+            if (connection != null) {
+                connection.close();
+            }
+            handler.appendToChat("🔌 You disconnected from the server.\n", Color.RED);
+        } catch (Exception e) {
+            showError("Error during disconnection: " + e.getMessage());
+        } finally {
+            dispose();
+            System.out.println("[INFO] Client " + username + " disconnected manually.");
+        }
+    }
+
 
     private void sendImage() {
         JFileChooser chooser = new JFileChooser();
@@ -105,10 +138,10 @@ public class ClientGUI extends JFrame {
             String base64Image = Base64.getEncoder().encodeToString(imageBytes);
 
             if (broadcast) {
-                connection.send("IMAGE|" + username + "|" + file.getName() + "|" + base64Image);
+                connection.sendToServer("IMAGE|" + username + "|" + file.getName() + "|" + base64Image);
                 handler.appendToChat("📤 Sent image: " + file.getName() + "\n", Color.BLUE);
             } else {
-                connection.send("IMAGE_PRIVATE|" + target + "|" + file.getName() + "|" + base64Image);
+                connection.sendToServer("IMAGE_PRIVATE|" + target + "|" + file.getName() + "|" + base64Image);
                 handler.appendToChat("➡️ (to " + target + ") sent image: " + file.getName() + "\n", Color.MAGENTA);
             }
         } catch (IOException e) {
