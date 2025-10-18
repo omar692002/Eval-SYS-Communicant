@@ -78,7 +78,7 @@ public class ClientGUI extends JFrame {
         try {
             handler = new MessageHandler(chatPane, userListModel, username);
             connection = new ClientConnection("localhost", 1234, username, handler);
-            handler.appendToChat("✅ Connected as " + username + "\n", Color.BLUE);
+            handler.appendToChat("✅ Connected as " + username + "\n");
         } catch (IOException e) {
             showError("Cannot connect to server!");
         }
@@ -93,10 +93,9 @@ public class ClientGUI extends JFrame {
 
         if (broadcast) {
             connection.sendToServer("BROADCAST|" + message);
-            handler.appendToChat("(Me): " + message + "\n", Color.BLUE);
         } else {
             connection.sendToServer("PRIVATE|" + target + "|" + message);
-            handler.appendToChat("➡️ (to " + target + "): " + message + "\n", Color.MAGENTA);
+            handler.appendToChat("➡️ (to " + target + "): " + message + "\n");
         }
         inputField.setText("");
     }
@@ -115,7 +114,7 @@ public class ClientGUI extends JFrame {
             if (connection != null) {
                 connection.close();
             }
-            handler.appendToChat("🔌 You disconnected from the server.\n", Color.RED);
+            handler.appendToChat("🔌 You disconnected from the server.\n");
         } catch (Exception e) {
             showError("Error during disconnection: " + e.getMessage());
         } finally {
@@ -139,10 +138,10 @@ public class ClientGUI extends JFrame {
 
             if (broadcast) {
                 connection.sendToServer("IMAGE|" + username + "|" + file.getName() + "|" + base64Image);
-                handler.appendToChat("📤 Sent image: " + file.getName() + "\n", Color.BLUE);
+                handler.appendToChat("📤 Sent image: " + file.getName() + "\n");
             } else {
                 connection.sendToServer("IMAGE_PRIVATE|" + target + "|" + file.getName() + "|" + base64Image);
-                handler.appendToChat("➡️ (to " + target + ") sent image: " + file.getName() + "\n", Color.MAGENTA);
+                handler.appendToChat("➡️ (to " + target + ") sent image: " + file.getName() + "\n");
             }
         } catch (IOException e) {
             showError("Failed to send image: " + e.getMessage());

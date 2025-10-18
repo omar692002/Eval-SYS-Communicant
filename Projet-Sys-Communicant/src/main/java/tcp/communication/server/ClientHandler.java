@@ -44,7 +44,7 @@ public  class ClientHandler implements Runnable {
         clientUsername = inFromClient.readLine();
         server.appendLog("🟢 " + clientUsername + " joined.\n");
         server.addClient(clientUsername, this);
-        server.broadcastToClients(clientUsername + " joined the chat!");
+        server.broadcastToClients(clientUsername + ": joined the chat!");
     }
 
     private void handleIncomingMessage(String input) {
