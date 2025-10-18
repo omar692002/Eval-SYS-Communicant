@@ -1,0 +1,129 @@
+package tcp.communication.client;
+
+import javax.swing.*;
+import java.awt.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.Base64;
+
+public class ClientGUI extends JFrame {
+    private JTextPane chatPane;
+    private JTextField inputField;
+    private JButton sendButton, sendImageButton;
+    private JList<String> userList;
+    private DefaultListModel<String> userListModel;
+
+    private ClientConnection connection;
+    private MessageHandler handler;
+    private final String username;
+
+    public ClientGUI(String username) {
+        this.username = username;
+        setupUI();
+        setupListeners();
+        connect();
+        setVisible(true);
+    }
+
+    private void setupUI() {
+        setTitle("Chat - " + username);
+        setSize(700, 500);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLayout(new BorderLayout());
+
+        chatPane = new JTextPane();
+        chatPane.setEditable(false);
+        JScrollPane chatScroll = new JScrollPane(chatPane);
+
+        userListModel = new DefaultListModel<>();
+        userList = new JList<>(userListModel);
+        JScrollPane userScroll = new JScrollPane(userList);
+        userScroll.setPreferredSize(new Dimension(150, 0));
+
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, chatScroll, userScroll);
+        splitPane.setDividerLocation(500);
+        add(splitPane, BorderLayout.CENTER);
+
+        inputField = new JTextField();
+        sendButton = new JButton("Send");
+        sendImageButton = new JButton("Send Image");
+
+        JPanel buttons = new JPanel(new GridLayout(1, 2));
+        buttons.add(sendButton);
+        buttons.add(sendImageButton);
+
+        JPanel inputPanel = new JPanel(new BorderLayout());
+        inputPanel.add(inputField, BorderLayout.CENTER);
+        inputPanel.add(buttons, BorderLayout.EAST);
+
+        add(inputPanel, BorderLayout.SOUTH);
+    }
+
+    private void setupListeners() {
+        sendButton.addActionListener(e -> sendMessage());
+        inputField.addActionListener(e -> sendMessage());
+        sendImageButton.addActionListener(e -> sendImage());
+    }
+
+    private void connect() {
+        try {
+            handler = new MessageHandler(chatPane, userListModel, username);
+            connection = new ClientConnection("localhost", 1234, username, handler);
+            handler.appendToChat("✅ Connected as " + username + "\n", Color.BLUE);
+        } catch (IOException e) {
+            showError("Cannot connect to server!");
+        }
+    }
+
+    private void sendMessage() {
+        String message = inputField.getText().trim();
+        if (message.isEmpty()) return;
+
+        String target = userList.getSelectedValue();
+        boolean broadcast = (target == null || target.equals("All"));
+
+        if (broadcast) {
+            connection.send("BROADCAST|" + message);
+            handler.appendToChat("(Me): " + message + "\n", Color.BLUE);
+        } else {
+            connection.send("PRIVATE|" + target + "|" + message);
+            handler.appendToChat("➡️ (to " + target + "): " + message + "\n", Color.MAGENTA);
+        }
+        inputField.setText("");
+    }
+
+    private void sendImage() {
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+
+        File file = chooser.getSelectedFile();
+        String target = userList.getSelectedValue();
+        boolean broadcast = (target == null || target.equals("All"));
+
+        try {
+            byte[] imageBytes = java.nio.file.Files.readAllBytes(file.toPath());
+            String base64Image = Base64.getEncoder().encodeToString(imageBytes);
+
+            if (broadcast) {
+                connection.send("IMAGE|" + username + "|" + file.getName() + "|" + base64Image);
+                handler.appendToChat("📤 Sent image: " + file.getName() + "\n", Color.BLUE);
+            } else {
+                connection.send("IMAGE_PRIVATE|" + target + "|" + file.getName() + "|" + base64Image);
+                handler.appendToChat("➡️ (to " + target + ") sent image: " + file.getName() + "\n", Color.MAGENTA);
+            }
+        } catch (IOException e) {
+            showError("Failed to send image: " + e.getMessage());
+        }
+    }
+
+    private void showError(String msg) {
+        JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE);
+    }
+
+    public static void main(String[] args) {
+        String username = JOptionPane.showInputDialog("Enter your username:");
+        if (username != null && !username.isBlank()) {
+            SwingUtilities.invokeLater(() -> new ClientGUI(username));
+        }
+    }
+}
