@@ -50,7 +50,7 @@ public class ClientManager {
         sendPacket(socket, msg.getBytes(), client);
     }
 
-    private void sendPacket(DatagramSocket socket, byte[] data, ClientInfo c) {
+    void sendPacket(DatagramSocket socket, byte[] data, ClientInfo c) {
         try {
             socket.send(new DatagramPacket(data, data.length, c.address(), c.port()));
         } catch (Exception e) {

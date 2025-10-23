@@ -2,6 +2,7 @@ package org.example.udp.server;
 
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.util.Arrays;
 
 /**
  * Handles parsing and executing incoming chat messages.
@@ -63,6 +64,38 @@ public class MessageHandler {
     }
 
     private void handleImage(DatagramSocket socket, byte[] data) {
-        clientManager.broadcastImage(socket, data);
+        try {
+            // Find positions of the first 4 colons (IMG:target:sender:fileName:)
+            int[] colons = new int[4];
+            int count = 0;
+            for (int i = 0; i < data.length && count < 4; i++) {
+                if (data[i] == ':') colons[count++] = i;
+            }
+
+            if (count < 4) return;
+
+            String target = new String(data, 4, colons[1] - 4, "UTF-8");
+            String sender = new String(data, colons[1] + 1, colons[2] - colons[1] - 1, "UTF-8");
+            String fileName = new String(data, colons[2] + 1, colons[3] - colons[2] - 1, "UTF-8");
+
+            // Extract the full header length
+            int headerLength = colons[3] + 1;
+
+            byte[] imgBytes = Arrays.copyOfRange(data, headerLength, data.length);
+
+            if (target.equals("ALL")) {
+                clientManager.broadcastImage(socket, data);
+            } else {
+                clientManager.findByPseudo(target).ifPresent(c -> {
+                    clientManager.sendPacket(socket, data, c);
+                });
+            }
+
+            System.out.println("📷 " + sender + " sent image '" + fileName + "' to " + target);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
+
 }
