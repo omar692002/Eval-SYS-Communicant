@@ -2,7 +2,7 @@ package org.example.udp.server;
 
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Handles parsing and executing incoming chat messages.
@@ -74,21 +74,13 @@ public class MessageHandler {
 
             if (count < 4) return;
 
-            String target = new String(data, 4, colons[1] - 4, "UTF-8");
-            String sender = new String(data, colons[1] + 1, colons[2] - colons[1] - 1, "UTF-8");
-            String fileName = new String(data, colons[2] + 1, colons[3] - colons[2] - 1, "UTF-8");
-
-            // Extract the full header length
-            int headerLength = colons[3] + 1;
-
-            byte[] imgBytes = Arrays.copyOfRange(data, headerLength, data.length);
-
+            String target = new String(data, 4, colons[1] - 4, StandardCharsets.UTF_8);
+            String sender = new String(data, colons[1] + 1, colons[2] - colons[1] - 1, StandardCharsets.UTF_8);
+            String fileName = new String(data, colons[2] + 1, colons[3] - colons[2] - 1, StandardCharsets.UTF_8);
             if (target.equals("ALL")) {
                 clientManager.broadcastImage(socket, data);
             } else {
-                clientManager.findByPseudo(target).ifPresent(c -> {
-                    clientManager.sendPacket(socket, data, c);
-                });
+                clientManager.findByPseudo(target).ifPresent(c -> clientManager.sendPacket(socket, data, c));
             }
 
             System.out.println("📷 " + sender + " sent image '" + fileName + "' to " + target);
