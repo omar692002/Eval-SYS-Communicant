@@ -20,6 +20,7 @@ public class ChatClientUI extends JFrame {
     private final JButton sendImageButton = new JButton("📷");
     private final DefaultListModel<String> connectedModel = new DefaultListModel<>();
     private JList<String> connectedList;
+    private final JButton signOutButton = new JButton("Sign Out");
 
     private final ChatClient chatClient;
 
@@ -59,8 +60,8 @@ public class ChatClientUI extends JFrame {
     private void initActions() {
         inputField.addActionListener(e -> sendMessage());
         sendButton.addActionListener(e -> sendMessage());
-        sendImageButton.addActionListener(e ->
-                chatClient.sendImage(getSelectedUsers()));
+        sendImageButton.addActionListener(e -> chatClient.sendImage(getSelectedUsers()));
+        signOutButton.addActionListener(e -> signOut());
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -69,6 +70,14 @@ public class ChatClientUI extends JFrame {
                 dispose();
             }
         });
+    }
+    private void signOut() {
+        chatClient.disconnect();
+        appendText("You have signed out. 👋");
+        new Timer(300, e -> {
+            dispose();
+            System.exit(0);
+        }).start();
     }
 
     /**
@@ -101,14 +110,14 @@ public class ChatClientUI extends JFrame {
         inputPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         inputPanel.add(inputField, BorderLayout.CENTER);
 
-        JPanel buttonsPanel = new JPanel(new GridLayout(1, 2, 5, 0));
+        JPanel buttonsPanel = new JPanel(new GridLayout(1, 3, 5, 0)); // was 2, now 3
         buttonsPanel.add(sendButton);
         buttonsPanel.add(sendImageButton);
+        buttonsPanel.add(signOutButton); // 🆕
 
         inputPanel.add(buttonsPanel, BorderLayout.EAST);
         add(inputPanel, BorderLayout.SOUTH);
     }
-
     /**
      * Sends a message typed in the input field to selected users.
      */
