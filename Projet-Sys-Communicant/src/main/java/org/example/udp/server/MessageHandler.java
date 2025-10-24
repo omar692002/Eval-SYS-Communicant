@@ -22,6 +22,8 @@ public class MessageHandler {
         else if (msg.startsWith("TO:")) handlePrivate(socket, msg);
         else if (msg.startsWith("ALL:")) handleBroadcast(socket, msg);
         else if (msg.startsWith("IMG:")) handleImage(socket, data);
+        else if (msg.startsWith("FILE:")) handleFile(socket, data);
+
     }
 
     private void handleJoin(DatagramSocket socket, String msg, InetAddress address, int port)  {
@@ -89,5 +91,32 @@ public class MessageHandler {
             e.printStackTrace();
         }
     }
+    private void handleFile(DatagramSocket socket, byte[] data) {
+        try {
+            int[] colons = new int[4];
+            int count = 0;
+            for (int i = 0; i < data.length && count < 4; i++) {
+                if (data[i] == ':') colons[count++] = i;
+            }
+
+            if (count < 4) return;
+
+            String target = new String(data, 5, colons[1] - 5, StandardCharsets.UTF_8);
+            String sender = new String(data, colons[1] + 1, colons[2] - colons[1] - 1, StandardCharsets.UTF_8);
+            String fileName = new String(data, colons[2] + 1, colons[3] - colons[2] - 1, StandardCharsets.UTF_8);
+
+            if (target.equals("ALL")) {
+                clientManager.broadcastImage(socket, data); // reuse for all binary packets
+            } else {
+                clientManager.findByPseudo(target).ifPresent(c -> clientManager.sendPacket(socket, data, c));
+            }
+
+            System.out.println("📁 " + sender + " sent file '" + fileName + "' to " + target);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
 }

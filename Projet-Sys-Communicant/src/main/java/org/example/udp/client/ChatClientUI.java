@@ -1,10 +1,15 @@
 package org.example.udp.client;
 
 import javax.swing.*;
+import javax.swing.text.Style;
+import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.File;
 import java.util.List;
 import java.util.Objects;
 
@@ -21,6 +26,7 @@ public class ChatClientUI extends JFrame {
     private final DefaultListModel<String> connectedModel = new DefaultListModel<>();
     private JList<String> connectedList;
     private final JButton signOutButton = new JButton("Sign Out");
+    private final JButton sendFileButton = new JButton("📎"); // 🆕
 
     private final ChatClient chatClient;
 
@@ -61,6 +67,7 @@ public class ChatClientUI extends JFrame {
         inputField.addActionListener(e -> sendMessage());
         sendButton.addActionListener(e -> sendMessage());
         sendImageButton.addActionListener(e -> chatClient.sendImage(getSelectedUsers()));
+        sendFileButton.addActionListener(e -> chatClient.sendFile(getSelectedUsers())); // 🆕
         signOutButton.addActionListener(e -> signOut());
 
         addWindowListener(new WindowAdapter() {
@@ -110,14 +117,15 @@ public class ChatClientUI extends JFrame {
         inputPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         inputPanel.add(inputField, BorderLayout.CENTER);
 
-        JPanel buttonsPanel = new JPanel(new GridLayout(1, 3, 5, 0)); // was 2, now 3
+        JPanel buttonsPanel = new JPanel(new GridLayout(1, 4, 5, 0)); // was 3, now 4
         buttonsPanel.add(sendButton);
         buttonsPanel.add(sendImageButton);
-        buttonsPanel.add(signOutButton); // 🆕
-
+        buttonsPanel.add(sendFileButton);  // 🆕
+        buttonsPanel.add(signOutButton);
         inputPanel.add(buttonsPanel, BorderLayout.EAST);
         add(inputPanel, BorderLayout.SOUTH);
     }
+
     /**
      * Sends a message typed in the input field to selected users.
      */
@@ -142,6 +150,40 @@ public class ChatClientUI extends JFrame {
             e.printStackTrace();
         }
     }
+    public void appendClickableFile(String sender, String fileName, File file) {
+        try {
+            StyledDocument doc = chatArea.getStyledDocument();
+
+            // Append sender info
+            doc.insertString(doc.getLength(), sender + " sent a file: ", null);
+
+            // Create clickable style
+            Style style = chatArea.addStyle("link", null);
+            StyleConstants.setForeground(style, Color.BLUE);
+            StyleConstants.setUnderline(style, true);
+
+            int start = doc.getLength();
+            doc.insertString(start, fileName + "\n", style);
+
+            // Add mouse listener for click
+            chatArea.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    try {
+                        int offset = chatArea.viewToModel2D(e.getPoint());
+                        if (offset >= start && offset < start + fileName.length()) {
+                            Desktop.getDesktop().open(file);
+                        }
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(chatArea, "⚠️ Cannot open file: " + ex.getMessage());
+                    }
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
     /**
      * Updates the connected users list.

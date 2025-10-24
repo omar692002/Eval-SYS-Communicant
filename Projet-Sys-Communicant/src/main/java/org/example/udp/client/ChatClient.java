@@ -7,6 +7,8 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.Objects;
@@ -172,6 +174,10 @@ public class ChatClient {
                 handleIncomingImage(data);
                 return;
             }
+            if (peek.startsWith("FILE:")) {
+                handleIncomingFile(data);
+                return;
+            }
 
             appendTextIfNotOwnBroadcast(data);
 
@@ -269,4 +275,60 @@ public class ChatClient {
             e.printStackTrace();
         }
     }
+    public void sendFile(List<String> targets) {
+        if (targets.isEmpty()) return;
+
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
+        File file = chooser.getSelectedFile();
+
+        try {
+            byte[] fileBytes = Files.readAllBytes(file.toPath());
+            String fileName = file.getName();
+
+            for (String target : targets) {
+                String header = "FILE:" + target + ":" + pseudo + ":" + fileName + ":";
+                byte[] headerBytes = header.getBytes(StandardCharsets.UTF_8);
+                byte[] packetData = new byte[headerBytes.length + fileBytes.length];
+
+                System.arraycopy(headerBytes, 0, packetData, 0, headerBytes.length);
+                System.arraycopy(fileBytes, 0, packetData, headerBytes.length, fileBytes.length);
+
+                sendPacket(packetData);
+
+                ui.appendClickableFile("You -> " + target, fileName, file);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            ui.appendText("❌ Failed to send file: " + file.getName());
+        }
+    }
+
+    private void handleIncomingFile(byte[] data) throws IOException {
+        int[] colons = new int[4];
+        int count = 0;
+        for (int i = 0; i < data.length && count < 4; i++) {
+            if (data[i] == ':') colons[count++] = i;
+        }
+        if (count < 4) return;
+
+        String target = new String(data, 5, colons[1] - 5, StandardCharsets.UTF_8);
+        String sender = new String(data, colons[1] + 1, colons[2] - colons[1] - 1, StandardCharsets.UTF_8);
+        String fileName = new String(data, colons[2] + 1, colons[3] - colons[2] - 1, StandardCharsets.UTF_8);
+
+        if (sender.equals(pseudo)) return;
+
+        byte[] fileBytes = Arrays.copyOfRange(data, colons[3] + 1, data.length);
+
+        Path downloadsDir = Paths.get(System.getProperty("user.home"), "Downloads");
+        if (!Files.exists(downloadsDir)) Files.createDirectories(downloadsDir);
+        Path filePath = downloadsDir.resolve(fileName);
+        Files.write(filePath, fileBytes);
+
+        // 🆕 Add clickable link to chat
+        ui.appendClickableFile(sender, fileName, filePath.toFile());
+    }
+
+
 }
