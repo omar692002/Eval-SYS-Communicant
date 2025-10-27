@@ -4,6 +4,7 @@ import javax.swing.*;
 import javax.swing.text.Style;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+import javax.swing.text.SimpleAttributeSet;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -11,6 +12,9 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Random;
 import java.util.Objects;
 
 /**
@@ -29,6 +33,10 @@ public class ChatClientUI extends JFrame {
     private final JButton sendFileButton = new JButton("📎"); // 🆕
 
     private final ChatClient chatClient;
+    // 🆕 Couleurs uniques par utilisateur
+    private final Map<String, Color> userColors = new HashMap<>();
+    private final Random random = new Random();
+
 
     /**
      * Constructs the chat UI for a given username.
@@ -80,7 +88,7 @@ public class ChatClientUI extends JFrame {
     }
     private void signOut() {
         chatClient.disconnect();
-        appendText("You have signed out. 👋");
+        appendText("You have signed out. 👋", "System");
         new Timer(300, e -> {
             dispose();
             System.exit(0);
@@ -142,28 +150,57 @@ public class ChatClientUI extends JFrame {
      *
      * @param msg The message to append.
      */
-    public void appendText(String msg) {
+    public void appendText(String msg, String sender) {
         try {
             StyledDocument doc = chatArea.getStyledDocument();
-            doc.insertString(doc.getLength(), msg + "\n", null);
+
+            // Récupération ou génération de la couleur unique du sender
+            userColors.putIfAbsent(sender, getRandomColor());
+            Color color = userColors.get(sender);
+
+            SimpleAttributeSet senderAttr = new SimpleAttributeSet();
+            StyleConstants.setForeground(senderAttr, color);
+            StyleConstants.setBold(senderAttr, true);
+
+            SimpleAttributeSet msgAttr = new SimpleAttributeSet();
+            StyleConstants.setForeground(msgAttr, color);
+            StyleConstants.setBold(msgAttr, false);
+
+            doc.insertString(doc.getLength(), sender + ": ", senderAttr);
+            doc.insertString(doc.getLength(), msg + "\n", msgAttr);
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    // 🆕 Génération de couleur lisible pour chaque utilisateur
+    private Color getRandomColor() {
+        float r = 0.2f + random.nextFloat() * 0.6f;
+        float g = 0.2f + random.nextFloat() * 0.6f;
+        float b = 0.2f + random.nextFloat() * 0.6f;
+        return new Color(r, g, b);
     }
     public void appendClickableFile(String sender, String fileName, File file) {
         try {
             StyledDocument doc = chatArea.getStyledDocument();
 
-            // Append sender info
-            doc.insertString(doc.getLength(), sender + " sent a file: ", null);
+            // Couleur du sender
+            userColors.putIfAbsent(sender, getRandomColor());
+            Color color = userColors.get(sender);
 
-            // Create clickable style
-            Style style = chatArea.addStyle("link", null);
-            StyleConstants.setForeground(style, Color.BLUE);
-            StyleConstants.setUnderline(style, true);
+            // Style du sender
+            SimpleAttributeSet senderAttr = new SimpleAttributeSet();
+            StyleConstants.setForeground(senderAttr, color);
+            StyleConstants.setBold(senderAttr, true);
 
+            // Style du lien
+            Style linkStyle = chatArea.addStyle("link", null);
+            StyleConstants.setForeground(linkStyle, Color.BLUE);
+            StyleConstants.setUnderline(linkStyle, true);
+
+            doc.insertString(doc.getLength(), sender + " sent a file: ", senderAttr);
             int start = doc.getLength();
-            doc.insertString(start, fileName + "\n", style);
+            doc.insertString(start, fileName + "\n", linkStyle);
 
             // Add mouse listener for click
             chatArea.addMouseListener(new MouseAdapter() {

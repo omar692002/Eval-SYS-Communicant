@@ -72,8 +72,9 @@ public class ChatClient {
 
         for (String target : targets) {
             String msg = formatTextMessage(target, text);
-            sendPacket(msg.getBytes());
-            ui.appendText("You -> " + target + ": " + text);
+            sendPacket(msg.getBytes(StandardCharsets.UTF_8));
+            // Affiche localement avec le format attendu par appendText(msg, sender)
+            ui.appendText(text, "You -> " + target);
         }
     }
 
@@ -95,7 +96,7 @@ public class ChatClient {
             for (String target : targets) {
                 byte[] packetData = buildImagePacket(target, fileName, imgBytes);
                 sendPacket(packetData);
-                ui.appendText("You -> " + target + " (Image): " + fileName);
+                ui.appendText(" (Image): " + fileName, "You -> " + target);
                 displayImageInChat(ImageIO.read(file), ui.getChatArea());
             }
         } catch (IOException e) {
@@ -163,7 +164,7 @@ public class ChatClient {
      */
     private void processIncomingMessage(byte[] data) {
         try {
-            String peek = new String(data, 0, Math.min(10, data.length));
+            String peek = new String(data, 0, Math.min(10, data.length), StandardCharsets.UTF_8);
 
             if (peek.startsWith("USERLIST:")) {
                 updateUserList(data);
@@ -182,7 +183,8 @@ public class ChatClient {
             appendTextIfNotOwnBroadcast(data);
 
         } catch (Exception e) {
-            ui.appendText(new String(data));
+            // fallback: afficher en tant que message serveur
+            ui.appendText(new String(data, StandardCharsets.UTF_8), "Server");
         }
     }
 
@@ -190,7 +192,8 @@ public class ChatClient {
      * Updates the connected users list in the UI.
      */
     private void updateUserList(byte[] data) {
-        List<String> users = Arrays.stream(new String(data).substring(9).split(","))
+        String payload = new String(data, StandardCharsets.UTF_8);
+        List<String> users = Arrays.stream(payload.substring(9).split(","))
                 .filter(u -> !u.isBlank() && !u.equals(pseudo))
                 .collect(Collectors.toList());
         ui.updateUserList(users);
@@ -200,11 +203,27 @@ public class ChatClient {
      * Appends a text message if it is not a broadcast from self.
      */
     private void appendTextIfNotOwnBroadcast(byte[] data) {
-        String msg = new String(data).trim();
-        if (!msg.startsWith(pseudo + " -> ALL:")) {
-            ui.appendText(msg);
+        String msg = new String(data, StandardCharsets.UTF_8).trim();
+
+        if (msg.contains("->")) {
+            int arrowIndex = msg.indexOf("->");
+            String sender = msg.substring(0, arrowIndex).trim();
+            String content = msg.substring(arrowIndex + 2).trim();
+
+            int colonIndex = content.indexOf(':');
+            if (colonIndex != -1) {
+                content = content.substring(colonIndex + 1).trim();
+            }
+
+            // Ne pas recolorer soi-même
+            if (!sender.equals(pseudo)) {
+                ui.appendText(content, sender);
+            }
+        } else {
+            ui.appendText(msg, "Server");
         }
     }
+
 
     /**
      * Handles an incoming image packet.
@@ -229,7 +248,8 @@ public class ChatClient {
         byte[] imgBytes = Arrays.copyOfRange(data, colons[3] + 1, data.length);
         BufferedImage img = ImageIO.read(new ByteArrayInputStream(imgBytes));
 
-        ui.appendText(sender + " -> " + target + " (Image): " + fileName);
+        // afficher avec sender + contenu séparable
+        ui.appendText(" (Image): " + fileName, sender + " -> " + target);
         displayImageInChat(img, ui.getChatArea());
     }
 
@@ -258,7 +278,7 @@ public class ChatClient {
      */
     private void sendSystemMessage(String msg) {
         if (Objects.nonNull(socket)) {
-            sendPacket(msg.getBytes());
+            sendPacket(msg.getBytes(StandardCharsets.UTF_8));
         }
     }
 
@@ -275,6 +295,7 @@ public class ChatClient {
             e.printStackTrace();
         }
     }
+
     public void sendFile(List<String> targets) {
         if (targets.isEmpty()) return;
 
@@ -301,7 +322,7 @@ public class ChatClient {
 
         } catch (IOException e) {
             e.printStackTrace();
-            ui.appendText("❌ Failed to send file: " + file.getName());
+            ui.appendText("❌ Failed to send file: " + file.getName(), "System");
         }
     }
 
@@ -329,6 +350,4 @@ public class ChatClient {
         // 🆕 Add clickable link to chat
         ui.appendClickableFile(sender, fileName, filePath.toFile());
     }
-
-
 }
