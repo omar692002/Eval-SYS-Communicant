@@ -5,6 +5,9 @@ import tcp.communication.enums.MessageType;
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.Base64;
 
@@ -26,6 +29,8 @@ public class MessageHandler {
             case USER_LIST -> handleUserList(message.substring(10));
             case IMAGE -> handleImageMessage(message);
             case IMAGE_PRIVATE -> handlePrivateImage(message);
+            case FILE -> handleFileMessage(message);        // ✅ Correct
+            case FILE_PRIVATE -> handlePrivateFile(message); // ✅ Correct
             default -> appendToChat(message + "\n");
         }
     }
@@ -41,6 +46,87 @@ public class MessageHandler {
             }
         });
     }
+
+    // ==================== 🆕 FILE HANDLING ====================
+
+    private void handleFileMessage(String msg) {
+        try {
+            System.out.println("[DEBUG] Received FILE message: " + msg);
+
+            String[] parts = msg.split("\\|", 4);
+            if (parts.length != 4) {
+                System.out.println("[ERROR] Invalid FILE message format (" + parts.length + " parts): " + msg);
+                return;
+            }
+
+            String sender = parts[1];
+            String filename = parts[2];
+            String base64 = parts[3];
+
+            System.out.println("[INFO] FILE message parsed from " + sender + " → " + filename + " (" + base64.length() + " base64 chars)");
+            saveFile(sender, filename, base64, false);
+        } catch (Exception e) {
+            System.out.println("[EXCEPTION] handleFileMessage: " + e.getMessage());
+            e.printStackTrace();
+            appendToChat("⚠️ Failed to process file message.\n");
+        }
+    }
+
+    private void handlePrivateFile(String msg) {
+        try {
+            System.out.println("[DEBUG] Received FILE_PRIVATE message: " + msg);
+
+            String[] parts = msg.split("\\|", 4);
+            if (parts.length != 4) {
+                System.out.println("[ERROR] Invalid FILE_PRIVATE message format (" + parts.length + " parts): " + msg);
+                return;
+            }
+
+            String sender = parts[1];
+            String filename = parts[2];
+            String base64 = parts[3];
+
+            System.out.println("[INFO] FILE_PRIVATE message parsed from " + sender + " → " + filename + " (" + base64.length() + " base64 chars)");
+            saveFile(sender, filename, base64, true);
+        } catch (Exception e) {
+            System.out.println("[EXCEPTION] handlePrivateFile: " + e.getMessage());
+            e.printStackTrace();
+            appendToChat("⚠️ Failed to process private file message.\n");
+        }
+    }
+
+    private void saveFile(String sender, String filename, String base64, boolean isPrivate) {
+        try {
+            System.out.println("[DEBUG] Saving file from " + sender + ": " + filename);
+
+            File dir = new File("downloads");
+            if (!dir.exists()) {
+                boolean created = dir.mkdirs();
+                System.out.println("[INFO] downloads/ directory created: " + created);
+            }
+
+            byte[] fileBytes = Base64.getDecoder().decode(base64);
+            File output = new File(dir, filename);
+            Files.write(output.toPath(), fileBytes);
+
+            System.out.println("[SUCCESS] File saved successfully at " + output.getAbsolutePath() + " (" + fileBytes.length + " bytes)");
+
+            String prefix = isPrivate ? "🔒 (Private)" : "📥";
+            appendToChat(prefix + " " + sender + " sent file: " + filename +
+                    " → saved to " + output.getAbsolutePath() + "\n");
+        } catch (IOException e) {
+            System.out.println("[ERROR] Failed to save file: " + e.getMessage());
+            e.printStackTrace();
+            appendToChat("❌ Failed to save file from " + sender + ": " + e.getMessage() + "\n");
+        } catch (IllegalArgumentException e) {
+            System.out.println("[ERROR] Base64 decoding failed for file " + filename + ": " + e.getMessage());
+            e.printStackTrace();
+            appendToChat("❌ Invalid file data from " + sender + "\n");
+        }
+    }
+
+    // ==========================================================
+
 
     private void handleImageMessage(String msg) {
         try {
@@ -80,9 +166,7 @@ public class MessageHandler {
         displayImage(sender, base64);
     }
 
-
     public void appendToChat(String text) {
-
         int sepIndex = text.indexOf(':');
 
         // 🧱 If no ':' found, treat as system or general message
@@ -121,28 +205,6 @@ public class MessageHandler {
         });
     }
 
-//    public void appendToChat(String text) {
-//        System.out.println(text);
-//        int sepIndex = text.indexOf(':');
-//        String sender = text.substring(0, sepIndex).trim();
-//        var  message=text .substring(sepIndex + 1).trim();
-//
-//        Color color = sender.equals(username)
-//                ? Color.BLUE // your own messages
-//                : getColorForUser(sender);
-//
-//        SwingUtilities.invokeLater(() -> {
-//            StyledDocument doc = chatPane.getStyledDocument();
-//            Style style = chatPane.addStyle("Style", null);
-//            StyleConstants.setForeground(style, color);
-//            try {
-//                doc.insertString(doc.getLength(), message, style);
-//            } catch (BadLocationException e) {
-//                e.printStackTrace();
-//            }
-//        });
-//    }
-
     public void appendIcon(String sender, ImageIcon icon) {
         SwingUtilities.invokeLater(() -> {
             try {
@@ -159,13 +221,13 @@ public class MessageHandler {
     public void showError(String message) {
         appendToChat(message + "\n");
     }
+
     private Color getColorForUser(String sender) {
         if (sender == null || sender.isBlank()) return Color.BLACK;
         return userColors.computeIfAbsent(sender, this::generateColorFromName);
     }
 
     private Color generateColorFromName(String name) {
-        // deterministic color based on hash (so same user always same color)
         int hash = Math.abs(name.hashCode());
         int r = 50 + (hash % 150);
         int g = 50 + ((hash / 150) % 150);

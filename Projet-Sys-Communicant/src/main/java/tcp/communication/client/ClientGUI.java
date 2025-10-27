@@ -9,7 +9,7 @@ import java.util.Base64;
 public class ClientGUI extends JFrame {
     private JTextPane chatPane;
     private JTextField inputField;
-    private JButton sendButton, sendImageButton;
+    private JButton sendButton, sendImageButton, sendFileButton;
     private JList<String> userList;
     private DefaultListModel<String> userListModel;
     private JButton disconnectButton;
@@ -48,17 +48,22 @@ public class ClientGUI extends JFrame {
         userScroll.setPreferredSize(new Dimension(150, 0));
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, chatScroll, userScroll);
-        splitPane.setDividerLocation(500);
+        splitPane.setResizeWeight(0.8); // 80% chat, 20% user list
+        splitPane.setDividerLocation(520);
+        splitPane.setOneTouchExpandable(true); // adds small arrows to resize
+        userScroll.setPreferredSize(new Dimension(180, 0));
         add(splitPane, BorderLayout.CENTER);
 
         // ===== INPUT PANEL =====
         inputField = new JTextField();
         sendButton = new JButton("Send");
         sendImageButton = new JButton("Send Image");
+        sendFileButton = new JButton("Send File");
 
-        JPanel buttons = new JPanel(new GridLayout(1, 2));
+        JPanel buttons = new JPanel(new GridLayout(1, 3));
         buttons.add(sendButton);
         buttons.add(sendImageButton);
+        buttons.add(sendFileButton);
 
         JPanel inputPanel = new JPanel(new BorderLayout());
         inputPanel.add(inputField, BorderLayout.CENTER);
@@ -71,6 +76,7 @@ public class ClientGUI extends JFrame {
         sendButton.addActionListener(e -> sendMessage());
         inputField.addActionListener(e -> sendMessage());
         sendImageButton.addActionListener(e -> sendImage());
+        sendFileButton.addActionListener(e -> sendFile());
         disconnectButton.addActionListener(e -> disconnect());
     }
 
@@ -145,6 +151,30 @@ public class ClientGUI extends JFrame {
             }
         } catch (IOException e) {
             showError("Failed to send image: " + e.getMessage());
+        }
+    }
+
+    private void sendFile() {
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+
+        File file = chooser.getSelectedFile();
+        String target = userList.getSelectedValue();
+        boolean broadcast = (target == null || target.equals("All"));
+
+        try {
+            byte[] fileBytes = java.nio.file.Files.readAllBytes(file.toPath());
+            String base64File = Base64.getEncoder().encodeToString(fileBytes);
+
+            if (broadcast) {
+                connection.sendToServer("FILE|" + username + "|" + file.getName() + "|" + base64File);
+                handler.appendToChat("📤 Sent file: " + file.getName() + "\n");
+            } else {
+                connection.sendToServer("FILE_PRIVATE|" + target + "|" + file.getName() + "|" + base64File);
+                handler.appendToChat("➡️ (to " + target + ") sent file: " + file.getName() + "\n");
+            }
+        } catch (IOException e) {
+            showError("Failed to send file: " + e.getMessage());
         }
     }
 

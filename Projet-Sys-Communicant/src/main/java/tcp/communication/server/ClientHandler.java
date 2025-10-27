@@ -1,4 +1,5 @@
 package tcp.communication.server;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -6,11 +7,14 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.Objects;
 
-public  class ClientHandler implements Runnable {
+public class ClientHandler implements Runnable {
     public static final String PRIVATE = "PRIVATE";
     public static final String BROADCAST = "BROADCAST";
     public static final String IMAGE_PRIVATE = "IMAGE_PRIVATE";
     public static final String IMAGE_PUBLIC = "IMAGE";
+    public static final String FILE = "FILE"; // ✅ fixed typo
+    public static final String FILE_PRIVATE = "FILE_PRIVATE"; // ✅ added
+
     private final Socket socket;
     private PrintWriter outToClient;
     private BufferedReader inFromClient;
@@ -27,6 +31,7 @@ public  class ClientHandler implements Runnable {
             inFromClient = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             outToClient = new PrintWriter(socket.getOutputStream(), true);
             handShakeConnexion();
+
             String inputMessage;
             while ((inputMessage = inFromClient.readLine()) != null) {
                 handleIncomingMessage(inputMessage);
@@ -49,23 +54,20 @@ public  class ClientHandler implements Runnable {
 
     private void handleIncomingMessage(String input) {
         if (Objects.isNull(input) || input.isEmpty()) return;
+
         var command = input.contains("|") ? input.substring(0, input.indexOf('|')) : input;
+
         switch (command) {
-            case PRIVATE:
-                handlePrivateMessage(input);
-                break;
-            case BROADCAST:
-                handleBroadcastMessage(input);
-                break;
-            case IMAGE_PRIVATE:
-                handlePrivateImage(input);
-                break;
-            case IMAGE_PUBLIC:
-                handleBroadcastImage(input);
-                break;
-            default:
+            case PRIVATE -> handlePrivateMessage(input);
+            case BROADCAST -> handleBroadcastMessage(input);
+            case IMAGE_PRIVATE -> handlePrivateImage(input);
+            case IMAGE_PUBLIC -> handleBroadcastImage(input);
+            case FILE -> handleBroadcastFile(input);          // ✅ added
+            case FILE_PRIVATE -> handlePrivateFile(input);    // ✅ added
+            default -> {
                 server.appendLog("⚠️ Unknown command from " + clientUsername + ": " + input + "\n");
-                break;
+                System.out.println("[DEBUG] Unknown command received: " + input);
+            }
         }
     }
 
@@ -115,6 +117,55 @@ public  class ClientHandler implements Runnable {
         }
     }
 
+    // ==================== 🆕 FILE HANDLING ====================
+
+    private void handlePrivateFile(String input) {
+        try {
+            int first = input.indexOf('|');
+            int second = input.indexOf('|', first + 1);
+            int third = input.indexOf('|', second + 1);
+
+            if (first == -1 || second == -1 || third == -1) {
+                System.out.println("[ERROR] Invalid FILE_PRIVATE format: " + input);
+                return;
+            }
+
+            String recipient = input.substring(first + 1, second);
+            String filename = input.substring(second + 1, third);
+            String base64 = input.substring(third + 1);
+
+            server.sendToClient(recipient, "FILE_PRIVATE|" + clientUsername + "|" + filename + "|" + base64);
+            server.appendLog("📤 (Private File) " + clientUsername + " → " + recipient + ": " + filename + "\n");
+        } catch (Exception e) {
+            System.out.println("[EXCEPTION] handlePrivateFile: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void handleBroadcastFile(String input) {
+        try {
+            int first = input.indexOf('|');
+            int second = input.indexOf('|', first + 1);
+            int third = input.indexOf('|', second + 1);
+
+            if (first == -1 || second == -1 || third == -1) {
+                System.out.println("[ERROR] Invalid FILE format: " + input);
+                return;
+            }
+
+            String sender = input.substring(first + 1, second);
+            String filename = input.substring(second + 1, third);
+            String base64 = input.substring(third + 1);
+
+            server.broadcastToClients("FILE|" + sender + "|" + filename + "|" + base64);
+            server.appendLog("📦 " + sender + " sent file: " + filename + "\n");
+        } catch (Exception e) {
+            System.out.println("[EXCEPTION] handleBroadcastFile: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // ==========================================================
 
     public void sendMessage(String message) {
         outToClient.println(message);
