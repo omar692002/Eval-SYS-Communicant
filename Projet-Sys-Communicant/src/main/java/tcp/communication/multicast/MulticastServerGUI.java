@@ -1,35 +1,40 @@
 package tcp.communication.multicast;
-
 import javax.swing.*;
+import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.*;
 import java.net.*;
+import java.nio.file.Files;
 
 public class MulticastServerGUI extends JFrame {
-    private JTextArea textArea;
+    private JTextPane textPane;
     private JTextField inputField;
-    private JButton sendButton;
+    private JButton sendTextButton, sendImageButton;
     private MulticastSocket socket;
     private InetAddress group;
-    private final int PORT = 4446;
 
     public MulticastServerGUI() {
         setTitle("Multicast Server");
-        setSize(400, 300);
+        setSize(500, 400);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        textArea = new JTextArea();
-        textArea.setEditable(false);
-        add(new JScrollPane(textArea), BorderLayout.CENTER);
+        textPane = new JTextPane();
+        textPane.setEditable(false);
+        add(new JScrollPane(textPane), BorderLayout.CENTER);
 
-        JPanel panel = new JPanel(new BorderLayout());
+        JPanel bottom = new JPanel(new BorderLayout());
         inputField = new JTextField();
-        sendButton = new JButton("Send");
+        sendTextButton = new JButton("Send Text");
+        sendImageButton = new JButton("Send Image");
+        JPanel buttons = new JPanel();
+        buttons.add(sendTextButton);
+        buttons.add(sendImageButton);
 
-        panel.add(inputField, BorderLayout.CENTER);
-        panel.add(sendButton, BorderLayout.EAST);
-        add(panel, BorderLayout.SOUTH);
+        bottom.add(inputField, BorderLayout.CENTER);
+        bottom.add(buttons, BorderLayout.EAST);
+        add(bottom, BorderLayout.SOUTH);
 
         try {
             socket = new MulticastSocket();
@@ -38,22 +43,58 @@ public class MulticastServerGUI extends JFrame {
             e.printStackTrace();
         }
 
-        sendButton.addActionListener(e -> sendMessage());
+        sendTextButton.addActionListener(e -> sendText());
+        sendImageButton.addActionListener(e -> sendImage());
     }
 
-    private void sendMessage() {
+    private void sendText() {
         try {
-            String message = inputField.getText();
-            if (!message.isEmpty()) {
-                byte[] buffer = message.getBytes();
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, PORT);
+            String msg = inputField.getText().trim();
+            if (!msg.isEmpty()) {
+                byte[] data = ("TEXT:" + msg).getBytes();
+                DatagramPacket packet = new DatagramPacket(data, data.length, group, 4446);
                 socket.send(packet);
-                textArea.append("Server: " + message + "\n");
+                appendText("Server: " + msg);
                 inputField.setText("");
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void sendImage() {
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try {
+                File file = chooser.getSelectedFile();
+                byte[] imageBytes = Files.readAllBytes(file.toPath());
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                baos.write("IMAGE:".getBytes());
+                baos.write(imageBytes);
+                byte[] data = baos.toByteArray();
+
+                DatagramPacket packet = new DatagramPacket(data, data.length, group, 4446);
+                socket.send(packet);
+                appendImage(new ImageIcon(file.getAbsolutePath()));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void appendText(String msg) {
+        try {
+            StyledDocument doc = textPane.getStyledDocument();
+            doc.insertString(doc.getLength(), msg + "\n", null);
+        } catch (Exception ignored) {}
+    }
+
+    private void appendImage(ImageIcon icon) {
+        try {
+            textPane.setCaretPosition(textPane.getDocument().getLength());
+            textPane.insertIcon(icon);
+            textPane.getDocument().insertString(textPane.getDocument().getLength(), "\n", null);
+        } catch (Exception ignored) {}
     }
 
     public static void main(String[] args) {
