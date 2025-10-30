@@ -11,6 +11,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -27,10 +28,10 @@ public class ChatClientUI extends JFrame {
     private final JTextField inputField = new JTextField();
     private final JButton sendButton = new JButton("Send");
     private final JButton sendImageButton = new JButton("📷");
+    private final JButton sendFileButton = new JButton("📎");
     private final DefaultListModel<String> connectedModel = new DefaultListModel<>();
     private JList<String> connectedList;
     private final JButton signOutButton = new JButton("Sign Out");
-    private final JButton sendFileButton = new JButton("📎"); // 🆕
 
     private final ChatClient chatClient;
     // 🆕 Couleurs uniques par utilisateur
@@ -86,6 +87,7 @@ public class ChatClientUI extends JFrame {
             }
         });
     }
+
     private void signOut() {
         chatClient.disconnect();
         appendText("You have signed out. 👋", "System");
@@ -125,7 +127,7 @@ public class ChatClientUI extends JFrame {
         inputPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         inputPanel.add(inputField, BorderLayout.CENTER);
 
-        JPanel buttonsPanel = new JPanel(new GridLayout(1, 4, 5, 0)); // was 3, now 4
+        JPanel buttonsPanel = new JPanel(new GridLayout(1, 4, 5, 0));
         buttonsPanel.add(sendButton);
         buttonsPanel.add(sendImageButton);
         buttonsPanel.add(sendFileButton);  // 🆕
@@ -164,7 +166,6 @@ public class ChatClientUI extends JFrame {
 
             SimpleAttributeSet msgAttr = new SimpleAttributeSet();
             StyleConstants.setForeground(msgAttr, color);
-            StyleConstants.setBold(msgAttr, false);
 
             doc.insertString(doc.getLength(), sender + ": ", senderAttr);
             doc.insertString(doc.getLength(), msg + "\n", msgAttr);
@@ -180,11 +181,12 @@ public class ChatClientUI extends JFrame {
         float b = 0.2f + random.nextFloat() * 0.6f;
         return new Color(r, g, b);
     }
+
+    // ✅ Version avec Ouvrir ou Enregistrer Sous
     public void appendClickableFile(String sender, String fileName, File file) {
         try {
             StyledDocument doc = chatArea.getStyledDocument();
 
-            // Couleur du sender
             userColors.putIfAbsent(sender, getRandomColor());
             Color color = userColors.get(sender);
 
@@ -198,7 +200,8 @@ public class ChatClientUI extends JFrame {
             StyleConstants.setForeground(linkStyle, Color.BLUE);
             StyleConstants.setUnderline(linkStyle, true);
 
-            doc.insertString(doc.getLength(), sender + " sent a file: ", senderAttr);
+            doc.insertString(doc.getLength(), sender + " a envoyé un fichier: ", senderAttr);
+
             int start = doc.getLength();
             doc.insertString(start, fileName + "\n", linkStyle);
 
@@ -209,10 +212,32 @@ public class ChatClientUI extends JFrame {
                     try {
                         int offset = chatArea.viewToModel2D(e.getPoint());
                         if (offset >= start && offset < start + fileName.length()) {
-                            Desktop.getDesktop().open(file);
+
+                            int choice = JOptionPane.showOptionDialog(
+                                    chatArea,
+                                    "Que voulez-vous faire avec ce fichier ?",
+                                    "Fichier reçu",
+                                    JOptionPane.YES_NO_CANCEL_OPTION,
+                                    JOptionPane.QUESTION_MESSAGE,
+                                    null,
+                                    new String[]{"Ouvrir", "Enregistrer sous...", "Annuler"},
+                                    "Ouvrir"
+                            );
+
+                            if (choice == 0) {
+                                Desktop.getDesktop().open(file);
+                            } else if (choice == 1) {
+                                JFileChooser chooser = new JFileChooser();
+                                chooser.setSelectedFile(new File(fileName));
+                                if (chooser.showSaveDialog(chatArea) == JFileChooser.APPROVE_OPTION) {
+                                    File destination = chooser.getSelectedFile();
+                                    Files.copy(file.toPath(), destination.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                    JOptionPane.showMessageDialog(chatArea, "✅ Fichier enregistré !");
+                                }
+                            }
                         }
                     } catch (Exception ex) {
-                        JOptionPane.showMessageDialog(chatArea, "⚠️ Cannot open file: " + ex.getMessage());
+                        JOptionPane.showMessageDialog(chatArea, "⚠️ Erreur: " + ex.getMessage());
                     }
                 }
             });
@@ -258,18 +283,8 @@ public class ChatClientUI extends JFrame {
      */
     public static void main(String[] args) {
         String pseudo = JOptionPane.showInputDialog("Enter your username:");
-
         if (Objects.nonNull(pseudo) && !pseudo.isBlank()) {
-            SwingUtilities.invokeLater(() -> {
-                try {
-                    ChatClientUI ui = new ChatClientUI(pseudo);
-                    ui.setVisible(true);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-        } else {
-            System.out.println("❌ Username cannot be empty. Exiting.");
-        }
+            SwingUtilities.invokeLater(() -> new ChatClientUI(pseudo).setVisible(true));
+        } else System.out.println("❌ Username cannot be empty.");
     }
 }
