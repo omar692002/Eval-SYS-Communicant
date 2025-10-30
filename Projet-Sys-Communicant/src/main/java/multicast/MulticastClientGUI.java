@@ -1,9 +1,8 @@
-package tcp.communication.multicast;
+package multicast;
 
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
-import java.io.*;
 import java.net.*;
 import java.util.Arrays;
 
