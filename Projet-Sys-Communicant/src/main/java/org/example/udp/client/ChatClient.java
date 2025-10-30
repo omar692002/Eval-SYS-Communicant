@@ -334,7 +334,6 @@ public class ChatClient {
         }
         if (count < 4) return;
 
-        String target = new String(data, 5, colons[1] - 5, StandardCharsets.UTF_8);
         String sender = new String(data, colons[1] + 1, colons[2] - colons[1] - 1, StandardCharsets.UTF_8);
         String fileName = new String(data, colons[2] + 1, colons[3] - colons[2] - 1, StandardCharsets.UTF_8);
 

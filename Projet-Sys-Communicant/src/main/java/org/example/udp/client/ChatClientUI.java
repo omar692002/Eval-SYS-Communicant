@@ -19,7 +19,7 @@ import java.util.Objects;
 
 /**
  * ChatClientUI represents the main chat window for the UDP chat application.
- * It handles UI rendering, user input, and interactions with the ChatClient.
+ * It handles UI rendering, user input, and interactions with the ChatClientMulticast.
  */
 public class ChatClientUI extends JFrame {
 
