@@ -1,6 +1,6 @@
-package tcp.communication.client;
+package org.example.tcp.client;
 
-import tcp.communication.enums.MessageType;
+import org.example.tcp.enums.MessageType;
 
 import javax.swing.*;
 import javax.swing.text.*;

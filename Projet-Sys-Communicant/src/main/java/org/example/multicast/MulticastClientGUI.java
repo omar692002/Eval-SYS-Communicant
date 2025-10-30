@@ -1,4 +1,4 @@
-package multicast;
+package org.example.multicast;
 
 import javax.swing.*;
 import javax.swing.text.*;

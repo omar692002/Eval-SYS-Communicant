@@ -1,4 +1,4 @@
-package tcp.communication.enums;
+package org.example.tcp.enums;
 
 public enum MessageType {
     USER_LIST,
