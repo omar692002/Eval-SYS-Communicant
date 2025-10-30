@@ -45,7 +45,7 @@ public class ChatClient {
     public void connect() {
         try {
             socket = new DatagramSocket();
-            serverAddress = InetAddress.getByName("localhost");
+            serverAddress = InetAddress.getByName("172.20.10.7"); // IP du serveur réel
             sendSystemMessage("JOIN:" + pseudo);
             startReceivingThread();
         } catch (Exception e) {
