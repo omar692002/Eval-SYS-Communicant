@@ -39,7 +39,10 @@ public class ClientHandler implements Runnable {
         } catch (IOException e) {
             server.appendLog("🔴 " + clientUsername + " disconnected.\n");
         } finally {
-            try { socket.close(); } catch (IOException ignored) {}
+            try {
+                socket.close();
+            } catch (IOException ignored) {
+            }
             server.removeClient(clientUsername);
             server.broadcastToClients(clientUsername + " left the chat.");
         }

@@ -25,9 +25,9 @@ public class ClientGUI extends JFrame {
         // Remove OS frame
         setUndecorated(true);
         // Rounded border
-        getRootPane().setBorder(BorderFactory.createLineBorder(new Color(60,60,65), 2, true));
+        getRootPane().setBorder(BorderFactory.createLineBorder(new Color(60, 60, 65), 2, true));
         // Transparent background to simulate shadow later
-        setBackground(new Color(0,0,0,0));
+        setBackground(new Color(0, 0, 0, 0));
 
         this.username = username;
 
@@ -52,7 +52,7 @@ public class ClientGUI extends JFrame {
         // Close button
         JButton closeBtn = new JButton("✕");
         closeBtn.setForeground(Color.WHITE);
-        closeBtn.setBackground(new Color(200,60,60));
+        closeBtn.setBackground(new Color(200, 60, 60));
         closeBtn.setBorderPainted(false);
         closeBtn.setFocusPainted(false);
         closeBtn.setPreferredSize(new Dimension(45, 32));
@@ -96,7 +96,7 @@ public class ClientGUI extends JFrame {
         chatPane.setBackground(Color.WHITE);
 
         JScrollPane chatScroll = new JScrollPane(chatPane);
-        chatScroll.setBorder(new EmptyBorder(5,5,5,5));
+        chatScroll.setBorder(new EmptyBorder(5, 5, 5, 5));
 
         userListModel = new DefaultListModel<>();
         userList = new JList<>(userListModel);
@@ -115,7 +115,7 @@ public class ClientGUI extends JFrame {
         // ========= INPUT =========
         inputField = new JTextField();
         inputField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        inputField.setBorder(new EmptyBorder(5,5,5,5));
+        inputField.setBorder(new EmptyBorder(5, 5, 5, 5));
 
         sendButton = createModernButton("Send", new Color(54, 140, 255));
         sendImageButton = createModernButton("Send Image", new Color(109, 190, 90));
@@ -141,7 +141,7 @@ public class ClientGUI extends JFrame {
 
         JPanel buttons = new JPanel(new GridLayout(1, 3, 4, 4));
         buttons.setBackground(bg);
-        buttons.setBorder(new EmptyBorder(3,3,3,3));
+        buttons.setBorder(new EmptyBorder(3, 3, 3, 3));
         buttons.add(sendButton);
         buttons.add(sendImageButton);
         buttons.add(sendFileButton);
