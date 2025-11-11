@@ -45,6 +45,8 @@ public class ClientHandler implements Runnable {
             }
             server.removeClient(clientUsername);
             server.broadcastToClients(clientUsername + " left the chat.");
+            server.appendLog("🔴 " + clientUsername + " disconnected.\n");
+
         }
     }
 

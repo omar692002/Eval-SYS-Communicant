@@ -2,13 +2,27 @@ package org.example.tcp.client;
 
 import org.example.tcp.enums.MessageType;
 
-import javax.swing.*;
-import javax.swing.text.*;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Dimension;
 import java.io.File;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.swing.DefaultListModel;
+import javax.swing.ImageIcon;
+import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextPane;
+import javax.swing.SwingUtilities;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Style;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
 
 public class MessageHandler {
     private final JTextPane chatPane;
@@ -28,8 +42,8 @@ public class MessageHandler {
             case USER_LIST -> handleUserList(message.substring(10));
             case IMAGE -> handleImageMessage(message);
             case IMAGE_PRIVATE -> handlePrivateImage(message);
-            case FILE -> handleFileMessage(message);        // ✅ Correct
-            case FILE_PRIVATE -> handlePrivateFile(message); // ✅ Correct
+            case FILE -> handleFileMessage(message);
+            case FILE_PRIVATE -> handlePrivateFile(message);
             default -> appendToChat(message + "\n");
         }
     }
@@ -46,12 +60,9 @@ public class MessageHandler {
         });
     }
 
-    // ==================== 🆕 FILE HANDLING ====================
 
     private void handleFileMessage(String msg) {
         try {
-            System.out.println("[DEBUG] Received FILE message: " + msg);
-
             String[] parts = msg.split("\\|", 4);
             if (parts.length != 4) {
                 System.out.println("[ERROR] Invalid FILE message format (" + parts.length + " parts): " + msg);
@@ -62,13 +73,10 @@ public class MessageHandler {
             String filename = parts[2];
             String base64 = parts[3];
 
-            // 🚫 Skip if this client is the sender
             if (sender.equals(username)) {
                 System.out.println("[INFO] Ignoring own file message for " + filename);
                 return;
             }
-
-            System.out.println("[INFO] FILE message parsed from " + sender + " → " + filename);
             saveFile(sender, filename, base64, false);
         } catch (Exception e) {
             e.printStackTrace();
@@ -107,43 +115,86 @@ public class MessageHandler {
     private void saveFile(String sender, String filename, String base64, boolean isPrivate) {
         SwingUtilities.invokeLater(() -> {
             try {
-                int choice = JOptionPane.showConfirmDialog(
-                        chatPane, // ✅ center popup in chat window
-                        sender + " sent you a file:\n" + filename + "\nDo you want to download it?",
-                        "Incoming File",
-                        JOptionPane.YES_NO_OPTION,
-                        JOptionPane.QUESTION_MESSAGE
-                );
-
-                if (choice != JOptionPane.YES_OPTION) {
-                    appendToChat("⚠️ You declined to download \"" + filename + "\" from " + sender + "\n");
-                    return;
-                }
-
-                JFileChooser chooser = new JFileChooser();
-                chooser.setSelectedFile(new File(filename));
-                int result = chooser.showSaveDialog(chatPane);
-
-                if (result != JFileChooser.APPROVE_OPTION) {
-                    appendToChat("❌ Download cancelled: " + filename + "\n");
-                    return;
-                }
-
-                File selectedFile = chooser.getSelectedFile();
                 byte[] fileBytes = Base64.getDecoder().decode(base64);
-                Files.write(selectedFile.toPath(), fileBytes);
 
-                String prefix = isPrivate ? "🔒 (Private)" : "📥";
-                appendToChat(prefix + " Downloaded \"" + filename + "\" → " + selectedFile.getAbsolutePath() + "\n");
+                int choice = showFileOptionsDialog(sender, filename);
+                switch (choice) {
+                    case 0 -> previewFile(sender, filename, fileBytes);
+                    case 1 -> downloadFile(sender, filename, fileBytes, isPrivate);
+                    default ->
+                            appendToChat("⚠️ You ignored the file \"" + filename + "\" from " + sender + "\n");
+                }
 
             } catch (Exception e) {
-                appendToChat("❌ Failed to download \"" + filename + "\": " + e.getMessage() + "\n");
+                appendToChat("❌ Failed to handle \"" + filename + "\": " + e.getMessage() + "\n");
                 e.printStackTrace();
             }
         });
     }
 
-    // ==========================================================
+    private int showFileOptionsDialog(String sender, String filename) {
+        Object[] options = {"Preview", "Download", "Cancel"};
+        return JOptionPane.showOptionDialog(
+                chatPane,
+                sender + " sent you a file:\n" + filename + "\nWhat would you like to do?",
+                "Incoming File",
+                JOptionPane.YES_NO_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                options,
+                options[1] // Default: Download
+        );
+    }
+
+    private void previewFile(String sender, String filename, byte[] fileBytes) {
+        if (!isTextFile(filename)) {
+            appendToChat("⚠️ Preview not supported for non-text files (" + filename + ")\n");
+            return;
+        }
+
+        try {
+            String content = new String(fileBytes);
+            JTextArea textArea = new JTextArea(content);
+            textArea.setEditable(false);
+            textArea.setLineWrap(true);
+            textArea.setWrapStyleWord(true);
+
+            JScrollPane scrollPane = new JScrollPane(textArea);
+            scrollPane.setPreferredSize(new Dimension(500, 400));
+
+            JOptionPane.showMessageDialog(
+                    chatPane,
+                    scrollPane,
+                    "Preview: " + filename,
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+
+            appendToChat("👀 You previewed \"" + filename + "\" from " + sender + "\n");
+        } catch (Exception e) {
+            appendToChat("❌ Failed to preview \"" + filename + "\": " + e.getMessage() + "\n");
+        }
+    }
+
+    private void downloadFile(String sender, String filename, byte[] fileBytes, boolean isPrivate) {
+        try {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setSelectedFile(new File(filename));
+
+            int result = chooser.showSaveDialog(chatPane);
+            if (result != JFileChooser.APPROVE_OPTION) {
+                appendToChat("❌ Download cancelled: " + filename + "\n");
+                return;
+            }
+
+            File selectedFile = chooser.getSelectedFile();
+            Files.write(selectedFile.toPath(), fileBytes);
+
+            String prefix = isPrivate ? "🔒 (Private)" : "📥";
+            appendToChat(prefix + " Downloaded \"" + filename + "\" → " + selectedFile.getAbsolutePath() + "\n");
+        } catch (Exception e) {
+            appendToChat("❌ Failed to download \"" + filename + "\": " + e.getMessage() + "\n");
+        }
+    }
 
     private void handleImageMessage(String msg) {
         try {
@@ -167,7 +218,7 @@ public class MessageHandler {
         }
     }
 
-    private void displayImage(String sender, String base64) {
+    public void displayImage(String sender, String base64) {
         try {
             byte[] bytes = Base64.getDecoder().decode(base64);
             ImageIcon icon = new ImageIcon(bytes);
@@ -189,8 +240,6 @@ public class MessageHandler {
         appendToChat("🔒 (Private) " + sender + " sent an image\n");
         displayImage(sender, base64);
     }
-
-    // ==========================================================
 
     public void appendToChat(String text) {
         int sepIndex = text.indexOf(':');
@@ -258,4 +307,15 @@ public class MessageHandler {
         int b = 50 + ((hash / 22500) % 150);
         return new Color(r, g, b);
     }
+
+    private boolean isTextFile(String filename) {
+        String lower = filename.toLowerCase();
+        return lower.endsWith(".txt") ||
+                lower.endsWith(".log") ||
+                lower.endsWith(".csv") ||
+                lower.endsWith(".json") ||
+                lower.endsWith(".xml") ||
+                lower.endsWith(".html");
+    }
+
 }

@@ -1,18 +1,27 @@
 package org.example.udp.client;
 
-import javax.imageio.ImageIO;
-import javax.swing.*;
 import java.awt.image.BufferedImage;
-import java.io.*;
-import java.net.*;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import javax.imageio.ImageIO;
+import javax.swing.ImageIcon;
+import javax.swing.JFileChooser;
+import javax.swing.JTextPane;
+import javax.swing.SwingUtilities;
 
 /**
  * Handles UDP chat client networking, message sending, and image handling.
@@ -45,7 +54,7 @@ public class ChatClient {
     public void connect() {
         try {
             socket = new DatagramSocket();
-            serverAddress = InetAddress.getByName("172.20.10.13"); // IP du serveur réel
+            serverAddress = InetAddress.getByName("localhost"); // IP du serveur réel
             sendSystemMessage("JOIN:" + pseudo);
             startReceivingThread();
         } catch (Exception e) {
