@@ -6,7 +6,6 @@ import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.Base64;
@@ -63,10 +62,15 @@ public class MessageHandler {
             String filename = parts[2];
             String base64 = parts[3];
 
-            System.out.println("[INFO] FILE message parsed from " + sender + " → " + filename + " (" + base64.length() + " base64 chars)");
+            // 🚫 Skip if this client is the sender
+            if (sender.equals(username)) {
+                System.out.println("[INFO] Ignoring own file message for " + filename);
+                return;
+            }
+
+            System.out.println("[INFO] FILE message parsed from " + sender + " → " + filename);
             saveFile(sender, filename, base64, false);
         } catch (Exception e) {
-            System.out.println("[EXCEPTION] handleFileMessage: " + e.getMessage());
             e.printStackTrace();
             appendToChat("⚠️ Failed to process file message.\n");
         }
@@ -86,47 +90,60 @@ public class MessageHandler {
             String filename = parts[2];
             String base64 = parts[3];
 
-            System.out.println("[INFO] FILE_PRIVATE message parsed from " + sender + " → " + filename + " (" + base64.length() + " base64 chars)");
+            // 🚫 Skip if this client is the sender
+            if (sender.equals(username)) {
+                System.out.println("[INFO] Ignoring own private file message for " + filename);
+                return;
+            }
+
+            System.out.println("[INFO] FILE_PRIVATE message parsed from " + sender + " → " + filename);
             saveFile(sender, filename, base64, true);
         } catch (Exception e) {
-            System.out.println("[EXCEPTION] handlePrivateFile: " + e.getMessage());
             e.printStackTrace();
             appendToChat("⚠️ Failed to process private file message.\n");
         }
     }
 
     private void saveFile(String sender, String filename, String base64, boolean isPrivate) {
-        try {
-            System.out.println("[DEBUG] Saving file from " + sender + ": " + filename);
+        SwingUtilities.invokeLater(() -> {
+            try {
+                int choice = JOptionPane.showConfirmDialog(
+                        chatPane, // ✅ center popup in chat window
+                        sender + " sent you a file:\n" + filename + "\nDo you want to download it?",
+                        "Incoming File",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE
+                );
 
-            File dir = new File("downloads");
-            if (!dir.exists()) {
-                boolean created = dir.mkdirs();
-                System.out.println("[INFO] downloads/ directory created: " + created);
+                if (choice != JOptionPane.YES_OPTION) {
+                    appendToChat("⚠️ You declined to download \"" + filename + "\" from " + sender + "\n");
+                    return;
+                }
+
+                JFileChooser chooser = new JFileChooser();
+                chooser.setSelectedFile(new File(filename));
+                int result = chooser.showSaveDialog(chatPane);
+
+                if (result != JFileChooser.APPROVE_OPTION) {
+                    appendToChat("❌ Download cancelled: " + filename + "\n");
+                    return;
+                }
+
+                File selectedFile = chooser.getSelectedFile();
+                byte[] fileBytes = Base64.getDecoder().decode(base64);
+                Files.write(selectedFile.toPath(), fileBytes);
+
+                String prefix = isPrivate ? "🔒 (Private)" : "📥";
+                appendToChat(prefix + " Downloaded \"" + filename + "\" → " + selectedFile.getAbsolutePath() + "\n");
+
+            } catch (Exception e) {
+                appendToChat("❌ Failed to download \"" + filename + "\": " + e.getMessage() + "\n");
+                e.printStackTrace();
             }
-
-            byte[] fileBytes = Base64.getDecoder().decode(base64);
-            File output = new File(dir, filename);
-            Files.write(output.toPath(), fileBytes);
-
-            System.out.println("[SUCCESS] File saved successfully at " + output.getAbsolutePath() + " (" + fileBytes.length + " bytes)");
-
-            String prefix = isPrivate ? "🔒 (Private)" : "📥";
-            appendToChat(prefix + " " + sender + " sent file: " + filename +
-                    " → saved to " + output.getAbsolutePath() + "\n");
-        } catch (IOException e) {
-            System.out.println("[ERROR] Failed to save file: " + e.getMessage());
-            e.printStackTrace();
-            appendToChat("❌ Failed to save file from " + sender + ": " + e.getMessage() + "\n");
-        } catch (IllegalArgumentException e) {
-            System.out.println("[ERROR] Base64 decoding failed for file " + filename + ": " + e.getMessage());
-            e.printStackTrace();
-            appendToChat("❌ Invalid file data from " + sender + "\n");
-        }
+        });
     }
 
     // ==========================================================
-
 
     private void handleImageMessage(String msg) {
         try {
@@ -138,6 +155,10 @@ public class MessageHandler {
             String sender = parts[1];
             String filename = parts[2];
             String base64 = parts[3];
+
+            // 🚫 Ignore own images
+            if (sender.equals(username)) return;
+
             appendToChat("🖼️ " + sender + " sent image: " + filename + "\n");
             displayImage(sender + " (" + filename + ")", base64);
         } catch (Exception e) {
@@ -145,7 +166,6 @@ public class MessageHandler {
             appendToChat("⚠️ Failed to display image from " + msg + "\n");
         }
     }
-
 
     private void displayImage(String sender, String base64) {
         try {
@@ -162,14 +182,19 @@ public class MessageHandler {
         if (parts.length != 4) return;
         String sender = parts[1];
         String base64 = parts[3];
+
+        // 🚫 Ignore own private images
+        if (sender.equals(username)) return;
+
         appendToChat("🔒 (Private) " + sender + " sent an image\n");
         displayImage(sender, base64);
     }
 
+    // ==========================================================
+
     public void appendToChat(String text) {
         int sepIndex = text.indexOf(':');
 
-        // 🧱 If no ':' found, treat as system or general message
         if (sepIndex == -1) {
             SwingUtilities.invokeLater(() -> {
                 StyledDocument doc = chatPane.getStyledDocument();
@@ -185,12 +210,11 @@ public class MessageHandler {
             return;
         }
 
-        // 🧩 Otherwise, parse sender + message
         String sender = text.substring(0, sepIndex).trim();
         String message = text.substring(sepIndex + 1).trim();
 
         Color color = sender.equals(username)
-                ? Color.BLUE // your own messages
+                ? Color.BLUE
                 : getColorForUser(sender);
 
         SwingUtilities.invokeLater(() -> {
