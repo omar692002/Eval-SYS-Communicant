@@ -1,5 +1,7 @@
 package org.example.udp.client;
 
+import javax.imageio.ImageIO;
+import javax.swing.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -16,12 +18,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
-import javax.imageio.ImageIO;
-import javax.swing.ImageIcon;
-import javax.swing.JFileChooser;
-import javax.swing.JTextPane;
-import javax.swing.SwingUtilities;
 
 /**
  * Handles UDP chat client networking, message sending, and image handling.
@@ -82,7 +78,6 @@ public class ChatClient {
         for (String target : targets) {
             String msg = formatTextMessage(target, text);
             sendPacket(msg.getBytes(StandardCharsets.UTF_8));
-            // Affiche localement avec le format attendu par appendText(msg, sender)
             ui.appendText(text, "You -> " + target);
         }
     }

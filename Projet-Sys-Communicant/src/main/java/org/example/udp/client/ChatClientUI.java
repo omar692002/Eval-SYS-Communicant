@@ -1,10 +1,11 @@
 package org.example.udp.client;
 
 import javax.swing.*;
+import javax.swing.Timer;
+import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.Style;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
-import javax.swing.text.SimpleAttributeSet;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -12,11 +13,8 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Random;
-import java.util.Objects;
 
 /**
  * ChatClientUI represents the main chat window for the UDP chat application.
@@ -256,6 +254,9 @@ public class ChatClientUI extends JFrame {
         connectedModel.clear();
         connectedModel.addElement("ALL");
         users.forEach(connectedModel::addElement);
+        if (connectedModel.getSize() > 0) {
+            connectedList.setSelectedIndex(0);
+        }
     }
 
     /**

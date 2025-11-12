@@ -26,7 +26,7 @@ public class MessageHandler {
 
     }
 
-    private void handleJoin(DatagramSocket socket, String msg, InetAddress address, int port)  {
+    private void handleJoin(DatagramSocket socket, String msg, InetAddress address, int port) {
         var pseudo = msg.substring(5).trim();
         var newClient = new ClientInfo(address, port, pseudo);
         clientManager.addClient(newClient);
@@ -91,6 +91,7 @@ public class MessageHandler {
             e.printStackTrace();
         }
     }
+
     private void handleFile(DatagramSocket socket, byte[] data) {
         try {
             int[] colons = new int[4];
